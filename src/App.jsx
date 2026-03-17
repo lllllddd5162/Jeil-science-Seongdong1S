@@ -33,7 +33,7 @@ const firebaseConfig = { apiKey: "AIzaSyBaWWriu3X7iVQnglR5XcA0Mqqc736VopM", auth
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = 'Jeil-science-Physics';
+const appId = 'Jeil-science-Seongdong1S';
 
 // --- Constants & Configuration ---
 const SUBJECTS = ['물리', '화학', '생명과학', '지구과학', '통합과학'];
