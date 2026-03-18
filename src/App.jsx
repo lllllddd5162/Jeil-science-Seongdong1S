@@ -1284,11 +1284,15 @@ export default function App() {
                                           {activeTab === 'memorization' && status !== 'not_started' && (
                                             <span className="text-[9px] font-black opacity-80 whitespace-nowrap">{cfg?.label}</span>
                                           )}
-                                          {userRole === 'master' && ((status === 'completed' && activeTab === 'matrix') || (status === 'round_4' && activeTab === 'memorization')) && (
-                                            inlineDateEditKey === subKey ? (
-                                              <input type="date" value={sub?.completionDate || ''} onChange={(e) => updateCompletionDate(s.id, as.id, e.target.value, activeTab === 'matrix' ? 'assignment' : 'memorization')} onBlur={() => setInlineDateEditKey(null)} className="text-[9px] border-none bg-white/60 rounded px-1 outline-none font-bold w-24" autoFocus onClick={e => e.stopPropagation()} />
+                                          {(userRole === 'master' || userRole === 'teacher') && ((status === 'completed' && activeTab === 'matrix') || (status === 'round_4' && activeTab === 'memorization')) && sub?.completionDate && (
+                                            userRole === 'master' ? (
+                                              inlineDateEditKey === subKey ? (
+                                                <input type="date" value={sub?.completionDate || ''} onChange={(e) => updateCompletionDate(s.id, as.id, e.target.value, activeTab === 'matrix' ? 'assignment' : 'memorization')} onBlur={() => setInlineDateEditKey(null)} className="text-[9px] border-none bg-white/60 rounded px-1 outline-none font-bold w-24" autoFocus onClick={e => e.stopPropagation()} />
+                                              ) : (
+                                                <span onClick={(e) => { e.stopPropagation(); setInlineDateEditKey(subKey); }} className="text-[9px] font-bold opacity-60 hover:opacity-100 cursor-pointer whitespace-nowrap">{sub?.completionDate?.split('-').slice(1).join('/') || '날짜'}</span>
+                                              )
                                             ) : (
-                                              <span onClick={(e) => { e.stopPropagation(); setInlineDateEditKey(subKey); }} className="text-[9px] font-bold opacity-60 hover:opacity-100 cursor-pointer whitespace-nowrap">{sub?.completionDate?.split('-').slice(1).join('/') || '날짜'}</span>
+                                              <span className="text-[9px] font-bold opacity-60 whitespace-nowrap">{sub?.completionDate?.split('-').slice(1).join('/')}</span>
                                             )
                                           )}
                                         </div>
@@ -1550,12 +1554,16 @@ export default function App() {
                                               </span>
                                             )}
                                           </div>
-                                          {userRole === 'master' && ((status === 'completed' && activeTab === 'matrix') || (status === 'round_4' && activeTab === 'memorization')) && (
+                                          {(userRole === 'master' || userRole === 'teacher') && ((status === 'completed' && activeTab === 'matrix') || (status === 'round_4' && activeTab === 'memorization')) && sub.completionDate && (
                                             <div className="mt-1 leading-none">
-                                              {inlineDateEditKey === subKey ? (
-                                                <input type="date" value={sub.completionDate || ''} onChange={(e) => updateCompletionDate(s.id, as.id, e.target.value, activeTab === 'matrix' ? 'assignment' : 'memorization')} onBlur={() => setInlineDateEditKey(null)} className="text-[8px] border-none bg-indigo-50 rounded px-1 outline-none font-bold shadow-inner" autoFocus />
+                                              {userRole === 'master' ? (
+                                                inlineDateEditKey === subKey ? (
+                                                  <input type="date" value={sub.completionDate || ''} onChange={(e) => updateCompletionDate(s.id, as.id, e.target.value, activeTab === 'matrix' ? 'assignment' : 'memorization')} onBlur={() => setInlineDateEditKey(null)} className="text-[8px] border-none bg-indigo-50 rounded px-1 outline-none font-bold shadow-inner" autoFocus />
+                                                ) : (
+                                                  <span onClick={(e) => { e.stopPropagation(); setInlineDateEditKey(subKey); }} className="text-[8px] font-bold text-slate-400 hover:text-indigo-600 cursor-pointer">{sub.completionDate?.split('-').slice(1).join('/') || '날짜'}</span>
+                                                )
                                               ) : (
-                                                <span onClick={(e) => { e.stopPropagation(); setInlineDateEditKey(subKey); }} className="text-[8px] font-bold text-slate-400 hover:text-indigo-600 cursor-pointer">{sub.completionDate?.split('-').slice(1).join('/') || '날짜'}</span>
+                                                <span className="text-[8px] font-bold text-slate-400">{sub.completionDate?.split('-').slice(1).join('/')}</span>
                                               )}
                                             </div>
                                           )}
