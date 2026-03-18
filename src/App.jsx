@@ -839,6 +839,22 @@ export default function App() {
     await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', coll, id));
   };
 
+  const moveItem = async (direction, item) => {
+    if (userRole !== 'master') return;
+    const coll = regCategory === 'assignment' ? 'assignments' : 'memoItems';
+    const list = regCategory === 'assignment' ? assignments : memoItems;
+    const idx = list.findIndex(x => x.id === item.id);
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= list.length) return;
+    const a = list[idx], b = list[swapIdx];
+    const aOrder = a.sortOrder ?? idx;
+    const bOrder = b.sortOrder ?? swapIdx;
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'artifacts', appId, 'public', 'data', coll, a.id), { sortOrder: bOrder }, { merge: true });
+    batch.set(doc(db, 'artifacts', appId, 'public', 'data', coll, b.id), { sortOrder: aOrder }, { merge: true });
+    await batch.commit();
+  };
+
   const saveStudentDetails = async () => {
     if (userRole !== 'master') return;
     if (!editStudentId || !editStudentData.name.trim()) return;
@@ -1775,38 +1791,43 @@ export default function App() {
                   const note = attendanceNotes[`${s.id}-${currentDate}`] || '';
                   const mDateValue = makeupDates[`${s.id}-${currentDate}`] || '';
                   return (
-                    <div key={s.id} className="px-5 py-4 flex items-start gap-4 hover:bg-slate-50 transition-all group">
-                      {/* 학생명 */}
-                      <div className="min-w-[120px] font-black text-base text-slate-700 leading-none pt-2.5 shrink-0">{s.name}</div>
-
-                      {/* 메모 + 보충일 */}
-                      <div className="flex-1 flex flex-col gap-2 min-w-0">
+                    <div key={s.id} className="px-4 py-4 hover:bg-slate-50 transition-all border-b border-slate-50 last:border-0">
+                      {/* 1행: 학생명 + 출결 버튼 */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="font-black text-base text-slate-700 leading-none flex-1 min-w-0 truncate">{s.name}</div>
+                        <div className="flex gap-1.5 shrink-0">
+                          {[{ id: 'present', l: '출석', c: 'emerald' }, { id: 'late', l: '지각', c: 'amber' }, { id: 'absent', l: '결석', c: 'red' }].map(opt => (
+                            <button key={opt.id} onClick={() => updateAttendance(s.id, opt.id)} disabled={userRole !== 'master'}
+                              className={`px-3 py-2 rounded-xl text-xs font-black border-2 transition-all shadow-sm leading-none ${att.status === opt.id ? `bg-${opt.c}-500 border-${opt.c}-500 text-white shadow-lg` : 'bg-white border-slate-100 text-slate-400'} ${userRole === 'master' ? 'active:scale-95' : 'cursor-default'}`}>
+                              {opt.l}
+                            </button>
+                          ))}
+                          <button onClick={() => updateAttendance(s.id, 'makeup')} disabled={userRole !== 'master'}
+                            className={`px-3 py-2 rounded-xl text-xs font-black border-2 transition-all shadow-sm leading-none ${att.makeup ? 'bg-purple-500 border-purple-500 text-white shadow-lg shadow-purple-100' : 'bg-white border-slate-100 text-slate-400'} ${userRole === 'master' ? 'active:scale-95' : 'cursor-default'}`}>
+                            보충
+                          </button>
+                        </div>
+                      </div>
+                      {/* 2행: 메모 */}
+                      <div className="flex flex-col gap-1.5">
                         {userRole === 'master' ? (
-                          <div className="relative w-full text-slate-700 shadow-sm">
-                            <StickyNote className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 w-4 h-4" />
-                            <BufferedInput value={note} onSave={(v) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'attendanceNotes', `${s.id}-${currentDate}`), { note: v })} placeholder="메모 입력..." className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border rounded-2xl text-sm font-medium outline-none focus:bg-white text-left" />
+                          <div className="relative w-full text-slate-700">
+                            <StickyNote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 w-3.5 h-3.5" />
+                            <BufferedInput value={note} onSave={(v) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'attendanceNotes', `${s.id}-${currentDate}`), { note: v })} placeholder="메모 입력..." className="w-full pl-9 pr-4 py-2 bg-slate-50 border rounded-xl text-sm font-medium outline-none focus:bg-white focus:border-slate-300 transition-all text-left" />
                           </div>
                         ) : (
-                          note ? <div className="px-4 py-2 bg-slate-50 rounded-2xl text-slate-600 font-medium text-sm italic leading-snug">{note}</div> : null
+                          note ? <div className="px-3 py-2 bg-slate-50 rounded-xl text-slate-600 font-medium text-sm italic leading-snug">{note}</div> : null
                         )}
                         {att.makeup && (
-                          <div className="flex items-center gap-2 bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-100 shadow-sm w-fit">
+                          <div className="flex items-center gap-2 bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-100 w-fit">
                             <span className="text-[10px] font-black text-purple-600 uppercase tracking-tighter">보충일</span>
                             {userRole === 'master' ? (
-                              <input type="date" value={mDateValue} onChange={(e) => updateMakeupDateValue(s.id, currentDate, e.target.value)} className="text-xs bg-white border-none rounded px-2 py-0.5 outline-none font-bold text-purple-700 select-text shadow-inner" />
+                              <input type="date" value={mDateValue} onChange={(e) => updateMakeupDateValue(s.id, currentDate, e.target.value)} className="text-xs bg-white border-none rounded px-2 py-0.5 outline-none font-bold text-purple-700 select-text" />
                             ) : (
                               <span className="text-xs font-bold text-purple-700">{mDateValue || '-'}</span>
                             )}
                           </div>
                         )}
-                      </div>
-
-                      {/* 출결 버튼 */}
-                      <div className="flex gap-1.5 shrink-0 pt-0.5">
-                        {[{ id: 'present', l: '출석', c: 'emerald' }, { id: 'late', l: '지각', c: 'amber' }, { id: 'absent', l: '결석', c: 'red' }].map(opt => (
-                          <button key={opt.id} onClick={() => updateAttendance(s.id, opt.id)} disabled={userRole !== 'master'} className={`px-4 py-2 rounded-xl text-xs font-black border-2 transition-all shadow-sm leading-none ${att.status === opt.id ? `bg-${opt.c}-500 border-${opt.c}-500 text-white shadow-lg` : 'bg-white border-slate-100 text-slate-400'}`}>{opt.l}</button>
-                        ))}
-                        <button onClick={() => updateAttendance(s.id, 'makeup')} disabled={userRole !== 'master'} className={`px-4 py-2 rounded-xl text-xs font-black border-2 transition-all shadow-sm leading-none ${att.makeup ? 'bg-purple-500 border-purple-500 text-white shadow-lg shadow-purple-100' : 'bg-white border-slate-100 text-slate-400'} ${userRole === 'master' ? 'hover:border-slate-300' : 'cursor-default'}`}>보충</button>
                       </div>
                     </div>
                   );
@@ -2230,11 +2251,11 @@ export default function App() {
                                 return (
                                   <div key={p.id} className="relative group/tip">
                                     <div className={`text-[9px] font-black px-1 py-0.5 rounded leading-none truncate ${p.done ? 'opacity-50 line-through ' + lt.calChip : lt.calChip}`}>{p.subject} {p.unit}</div>
-                                    <div className="absolute left-0 bottom-full mb-1 hidden group-hover/tip:block z-50 pointer-events-none">
-                                      <div className="bg-slate-900 text-white text-[10px] font-black px-2.5 py-1.5 rounded-xl shadow-2xl whitespace-nowrap max-w-[200px] leading-snug">
+                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 hidden group-hover/tip:block z-50 pointer-events-none" style={{left:'50%',transform:'translateX(-50%) translateX(0)',maxWidth:'220px',whiteSpace:'normal'}}>
+                                      <div className="bg-slate-900 text-white text-[10px] font-black px-2.5 py-1.5 rounded-xl shadow-2xl leading-snug break-keep" style={{width:'max-content',maxWidth:'220px'}}>
                                         [{p.lessonType || '진도'}] {p.subject} {p.unit}
                                       </div>
-                                      <div className="w-2 h-2 bg-slate-900 rotate-45 -mt-1 ml-2" />
+                                      <div className="w-2 h-2 bg-slate-900 rotate-45 -mt-1 mx-auto" />
                                     </div>
                                   </div>
                                 );
@@ -2242,13 +2263,13 @@ export default function App() {
                               {dayPlans.length > 2 && (
                                 <div className="relative group/tip">
                                   <div className="text-[9px] text-slate-400 font-bold px-1">+{dayPlans.length - 2}</div>
-                                  <div className="absolute left-0 bottom-full mb-1 hidden group-hover/tip:block z-50 pointer-events-none">
-                                    <div className="bg-slate-900 text-white text-[10px] font-black px-2.5 py-1.5 rounded-xl shadow-2xl whitespace-nowrap leading-snug space-y-1">
+                                  <div className="absolute left-1/2 bottom-full mb-1 hidden group-hover/tip:block z-50 pointer-events-none" style={{transform:'translateX(-50%)',maxWidth:'220px'}}>
+                                    <div className="bg-slate-900 text-white text-[10px] font-black px-2.5 py-1.5 rounded-xl shadow-2xl leading-snug space-y-1 break-keep" style={{width:'max-content',maxWidth:'220px'}}>
                                       {dayPlans.slice(2).map(p => (
                                         <div key={p.id} className={p.done ? 'line-through opacity-60' : ''}>{p.subject} {p.unit}</div>
                                       ))}
                                     </div>
-                                    <div className="w-2 h-2 bg-slate-900 rotate-45 -mt-1 ml-2" />
+                                    <div className="w-2 h-2 bg-slate-900 rotate-45 -mt-1 mx-auto" />
                                   </div>
                                 </div>
                               )}
@@ -3665,6 +3686,10 @@ export default function App() {
                         </div>
                         {userRole === 'master' && (
                           <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                            <div className="flex flex-col gap-1">
+                              <button onClick={() => moveItem('up', a)} className="p-1.5 text-slate-400 bg-slate-50 hover:bg-slate-200 hover:text-slate-700 rounded-lg transition-all shadow-sm leading-none" title="위로"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 11V3M3 7l4-4 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                              <button onClick={() => moveItem('down', a)} className="p-1.5 text-slate-400 bg-slate-50 hover:bg-slate-200 hover:text-slate-700 rounded-lg transition-all shadow-sm leading-none" title="아래로"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 3v8M3 7l4 4 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                            </div>
                             <button onClick={() => { setEditItemId(a.id); setEditItemData({ ...a }); }} className="p-2.5 text-indigo-500 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all shadow-sm"><Edit2 size={18} /></button>
                             <button onClick={() => deleteItem(regCategory === 'assignment' ? 'assignments' : 'memoItems', a.id)} className="p-2.5 text-red-500 bg-red-50 hover:bg-red-100 rounded-xl transition-all shadow-sm"><Trash2 size={18} /></button>
                           </div>
