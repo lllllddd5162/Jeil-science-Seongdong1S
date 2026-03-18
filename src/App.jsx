@@ -1700,7 +1700,7 @@ export default function App() {
                                           placeholder="출제 단원"
                                           className="flex-1 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:bg-white focus:border-slate-400 text-slate-700 transition-all" />
                                         <div className="relative shrink-0 w-24">
-                                          <input type="number" min="0" step="0.5" value={q.points ?? ''} onChange={(e) => updateNewQ(label, i, 'points', e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                          <input type="number" min="0" step="any" value={q.points ?? ''} onChange={(e) => updateNewQ(label, i, 'points', e.target.value === '' ? '' : parseFloat(e.target.value))}
                                             placeholder="0"
                                             className="w-full pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:bg-white focus:border-slate-400 text-slate-700 transition-all" />
                                           <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 pointer-events-none">점</span>
@@ -1879,7 +1879,7 @@ export default function App() {
                                         {/* 점수 */}
                                         {userRole === 'master' ? (
                                           <div className="mb-2 space-y-1">
-                                            <BufferedInput type="number" value={res.score ?? ''} onSave={(v) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { score: v === '' ? null : parseFloat(v) }, { merge: true })} className="w-full px-2 py-2 rounded-xl bg-orange-50 border border-orange-100 font-black text-center text-lg text-orange-700 focus:border-orange-400 shadow-sm transition-all" step="0.1" />
+                                            <BufferedInput type="number" value={res.score ?? ''} onSave={(v) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { score: v === '' ? null : parseFloat(v) }, { merge: true })} className="w-full px-2 py-2 rounded-xl bg-orange-50 border border-orange-100 font-black text-center text-lg text-orange-700 focus:border-orange-400 shadow-sm transition-all" step="any" />
                                             {calcScore !== null && <p className="text-[9px] font-bold text-slate-400 text-center">배점계산 {calcScore.toFixed(1)}점</p>}
                                           </div>
                                         ) : (
@@ -1937,7 +1937,7 @@ export default function App() {
                                                     <div key={n} className="flex items-center gap-1.5">
                                                       <span className="text-[9px] font-black text-red-500 w-8 shrink-0">{qLabel}</span>
                                                       <div className="relative flex-1">
-                                                        <input type="number" min="0" step="0.5" max={q.points||999}
+                                                        <input type="number" min="0" step="any" max={q.points||999}
                                                           value={partialScores[n] ?? (q.points ?? '')}
                                                           onChange={(e) => {
                                                             const ps = {...partialScores, [n]: e.target.value === '' ? 0 : parseFloat(e.target.value)};
@@ -2106,7 +2106,7 @@ export default function App() {
                                     return (
                                       <td key={t.id} className="p-3 text-center bg-slate-50/30 align-top min-w-[140px]">
                                         {userRole === 'master' ? (
-                                          <BufferedInput type="number" value={res.score ?? ''} onSave={(v) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { score: v === '' ? null : parseFloat(v) }, { merge: true })} className="w-full px-2 py-2 rounded-xl bg-white border border-slate-200 font-black text-center text-lg text-slate-700 focus:border-slate-400 shadow-sm transition-all mb-2" step="0.1" />
+                                          <BufferedInput type="number" value={res.score ?? ''} onSave={(v) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { score: v === '' ? null : parseFloat(v) }, { merge: true })} className="w-full px-2 py-2 rounded-xl bg-white border border-slate-200 font-black text-center text-lg text-slate-700 focus:border-slate-400 shadow-sm transition-all mb-2" step="any" />
                                         ) : (
                                           <div className={`text-xl font-black mb-2 leading-none ${score != null && score !== '' ? 'text-slate-700' : 'text-slate-300'}`}>
                                             {score != null && score !== '' ? `${score}점` : '-'}
@@ -4438,7 +4438,7 @@ export default function App() {
                                               placeholder="출제 단원"
                                               className="flex-1 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:bg-white focus:border-slate-400 text-slate-700 transition-all" />
                                             <div className="relative shrink-0 w-24">
-                                              <input type="number" min="0" step="0.5" value={q.points ?? ''} onChange={(e) => updateQ(label, i, 'points', e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                              <input type="number" min="0" step="any" value={q.points ?? ''} onChange={(e) => updateQ(label, i, 'points', e.target.value === '' ? '' : parseFloat(e.target.value))}
                                                 placeholder="0"
                                                 className="w-full pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:bg-white focus:border-slate-400 text-slate-700 transition-all" />
                                               <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 pointer-events-none">점</span>
