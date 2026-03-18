@@ -518,6 +518,8 @@ export default function App() {
 
   const [matrixHideDone, setMatrixHideDone] = useState(false);
   const [collapsedWeeks, setCollapsedWeeks] = useState({});
+  const [testSectionCollapsed, setTestSectionCollapsed] = useState({ main: false, mini: false });
+  const [weakUnitOpen, setWeakUnitOpen] = useState(true);
 
   // UI Support
   const [currentDate, setCurrentDate] = useState(() => {
@@ -547,7 +549,8 @@ export default function App() {
     title: '', source: '', difficulty: '중', description: '', 
     date: new Date(Date.now() + 9*60*60*1000).toISOString().split('T')[0], 
     scales: DEFAULT_GRADE_SCALES,
-    testType: '중간 테스트'
+    testType: '중간 테스트',
+    mcCount: '', saCount: ''
   });
 
   // --- Logic Hooks ---
@@ -817,7 +820,13 @@ export default function App() {
   const addTest = async () => {
     if (userRole !== 'master' || !newTest.title.trim()) return;
     await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tests', 't' + Date.now()), { ...newTest });
-    setNewTest(prev => ({ ...prev, title: '', description: '' }));
+    setNewTest({
+      title: '', source: '', difficulty: '중', description: '',
+      date: new Date(Date.now() + 9*60*60*1000).toISOString().split('T')[0],
+      scales: DEFAULT_GRADE_SCALES,
+      testType: newTest.testType,
+      mcCount: '', saCount: '', questions: []
+    });
   };
 
   const updateTestDetails = async () => {
@@ -1065,7 +1074,7 @@ export default function App() {
                       {showColorPicker && (
                         <div className="absolute top-7 left-0 z-[300] bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 w-64 animate-in zoom-in-95" onClick={e=>e.stopPropagation()}>
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">추천 색상</p>
-                          <div className="grid grid-cols-5 gap-2 mb-3">
+                          <div className="grid grid-cols-4 md:grid-cols-5 gap-2 mb-3">
                             {[['#3730a3','인디고'],['#1d4ed8','블루'],['#0f766e','틸'],['#7c3aed','바이올렛'],['#b91c1c','레드'],['#c2410c','오렌지'],['#15803d','그린'],['#1e3a5f','네이비'],['#4a1d96','퍼플'],['#374151','그레이']].map(([c,n])=>(
                               <button key={c} onClick={()=>saveSiteColor(c)} title={n}
                                 className="w-9 h-9 rounded-xl border-2 transition-all hover:scale-110 active:scale-95 shadow-sm"
@@ -1286,14 +1295,12 @@ export default function App() {
                                           {/* 과목·수준 + 뱃지 행 */}
                                           <div className="flex flex-wrap items-center gap-1 mt-1">
                                             <span className="text-[9px] font-bold opacity-70 leading-none">{as.subject} · {as.level}</span>
-                                            {activeTab === 'matrix' && as.deadline && diff !== null && diff >= 0 && (
-                                              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-lg border leading-none whitespace-nowrap ${diff === 0 ? 'bg-orange-100 text-orange-600 border-orange-200' : diff <= 3 ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-white/60 text-current border-current/20'}`}>
-                                                {diff === 0 ? '마감!' : `D-${diff}`}
-                                              </span>
-                                            )}
-                                            {isOverdue && (
-                                              <span className="flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-lg border leading-none whitespace-nowrap bg-red-100 text-red-600 border-red-200">
-                                                <AlertTriangle size={8} className="shrink-0"/>{overDiff}일 초과
+                                            {activeTab === 'matrix' && as.deadline && (
+                                              <span className={`flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-lg border leading-none whitespace-nowrap ${isOverdue ? 'bg-red-100 text-red-600 border-red-200' : diff === 0 ? 'bg-orange-100 text-orange-600 border-orange-200' : diff !== null && diff <= 3 ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-white/60 text-current border-current/20'}`}>
+                                                {isOverdue && <AlertTriangle size={8} className="shrink-0"/>}
+                                                {isOverdue ? `${overDiff}일 초과` : diff === 0 ? '마감!' : diff !== null && diff >= 0 ? `D-${diff}` : ''}
+                                                {(isOverdue || diff === 0 || (diff !== null && diff >= 0)) && <span className="opacity-70">·</span>}
+                                                마감일: {as.deadline.slice(5).replace('-','/')}
                                               </span>
                                             )}
                                             {activeTab === 'memorization' && status !== 'not_started' && (
@@ -1467,15 +1474,21 @@ export default function App() {
                                         }).length;
                                         if (incompleteCnt === 0) return null;
                                         return (
-                                          <span className="mt-1.5 mx-auto flex items-center justify-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-black w-fit leading-none bg-red-100 text-red-600 border border-red-200">
-                                            <AlertTriangle size={9}/>{overDays}일 초과 · {incompleteCnt}명
-                                          </span>
+                                          <div className="mt-1.5 mx-auto flex flex-col items-center gap-0.5 w-fit">
+                                            <span className="flex items-center justify-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-black leading-none bg-red-100 text-red-600 border border-red-200">
+                                              <AlertTriangle size={9}/>{overDays}일 초과 · {incompleteCnt}명
+                                            </span>
+                                            <span className="text-[8px] font-bold text-slate-400 leading-none">마감일: {as.deadline.slice(5).replace('-','/')}</span>
+                                          </div>
                                         );
                                       }
                                       return (
-                                        <span className={`mt-1.5 mx-auto flex items-center justify-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-black w-fit leading-none ${isToday ? 'bg-orange-100 text-orange-600 border border-orange-200' : isClose ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-slate-100 text-slate-400 border border-slate-200'}`}>
-                                          <Calendar size={9}/>{isToday ? '마감!' : `D-${diff}`}
-                                        </span>
+                                        <div className="mt-1.5 mx-auto flex flex-col items-center gap-0.5 w-fit">
+                                          <span className={`flex items-center justify-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-black leading-none ${isToday ? 'bg-orange-100 text-orange-600 border border-orange-200' : isClose ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-slate-100 text-slate-400 border border-slate-200'}`}>
+                                            <Calendar size={9}/>{isToday ? '마감!' : `D-${diff}`}
+                                          </span>
+                                          <span className="text-[8px] font-bold text-slate-400 leading-none">마감일: {as.deadline.slice(5).replace('-','/')}</span>
+                                        </div>
                                       );
                                     })()}
                                   </div>
@@ -1621,125 +1634,608 @@ export default function App() {
                       </button>
                     ))}
                   </div>
-                  <BufferedTextarea value={newTest.description} onSave={(v) => setNewTest({ ...newTest, description: v })} placeholder="상세 범위 및 설명..." className="w-full h-24 p-4 border rounded-2xl font-medium text-sm outline-none bg-slate-50 focus:bg-white transition-all text-slate-700 shadow-inner" />
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div className="space-y-1">
+                      <p className="text-[10px] uppercase font-black ml-1 text-slate-400">객관식 문항 수</p>
+                      <div className="relative">
+                        <input type="number" min="0" value={newTest.mcCount} onChange={(e) => {
+                          const cnt = parseInt(e.target.value) || 0;
+                          const existing = (newTest.questions || []).filter(q => q.type === '객관식');
+                          const others = (newTest.questions || []).filter(q => q.type !== '객관식');
+                          const newQs = Array.from({length: cnt}, (_, i) => existing[i] || {type:'객관식', num:i+1, difficulty:'중', unit:'', detail:''});
+                          setNewTest({ ...newTest, mcCount: e.target.value, questions: [...newQs, ...others] });
+                        }} placeholder="0" className="w-full pl-4 pr-16 py-3 rounded-2xl border bg-slate-50 font-bold outline-none focus:border-orange-400 transition-all text-slate-800 shadow-sm" />
+                        <span className="absolute right-10 top-1/2 -translate-y-1/2 text-[11px] font-black text-slate-400 pointer-events-none">문항</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[10px] uppercase font-black ml-1 text-slate-400">주관식 문항 수</p>
+                      <div className="relative">
+                        <input type="number" min="0" value={newTest.saCount} onChange={(e) => {
+                          const cnt = parseInt(e.target.value) || 0;
+                          const existing = (newTest.questions || []).filter(q => q.type === '주관식');
+                          const others = (newTest.questions || []).filter(q => q.type !== '주관식');
+                          const newQs = Array.from({length: cnt}, (_, i) => existing[i] || {type:'주관식', num:i+1, difficulty:'중', unit:'', detail:''});
+                          setNewTest({ ...newTest, saCount: e.target.value, questions: [...others, ...newQs] });
+                        }} placeholder="0" className="w-full pl-4 pr-16 py-3 rounded-2xl border bg-slate-50 font-bold outline-none focus:border-orange-400 transition-all text-slate-800 shadow-sm" />
+                        <span className="absolute right-10 top-1/2 -translate-y-1/2 text-[11px] font-black text-slate-400 pointer-events-none">문항</span>
+                      </div>
+                    </div>
+                  </div>
+                  {/* 등록 폼 문항별 정보 입력 */}
+                  {(newTest.questions || []).length > 0 && (() => {
+                    const mcQs = (newTest.questions || []).filter(q => q.type === '객관식');
+                    const saQs = (newTest.questions || []).filter(q => q.type === '주관식');
+                    const updateNewQ = (type, idx, field, val) => {
+                      const qs = [...(newTest.questions || [])];
+                      const target = qs.filter(q => q.type === type)[idx];
+                      if (!target) return;
+                      qs[qs.indexOf(target)] = { ...target, [field]: val };
+                      setNewTest({ ...newTest, questions: qs });
+                    };
+                    return (
+                      <div className="space-y-3 mb-3">
+                        {[{label:'객관식', list:mcQs, color:'orange'}, {label:'주관식', list:saQs, color:'indigo'}].map(({label, list, color}) =>
+                          list.length > 0 && (
+                            <div key={label}>
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className={`text-[11px] font-black px-2.5 py-1 bg-${color}-100 text-${color}-600 rounded-xl leading-none`}>{label}</span>
+                                <span className="text-[10px] font-bold text-slate-400">문항별 정보</span>
+                              </div>
+                              <div className="space-y-2">
+                                {list.map((q, i) => (
+                                  <div key={i} className={`border border-${color}-100 rounded-2xl overflow-hidden`}>
+                                    <div className={`bg-${color}-50 px-3 py-2 flex items-center gap-2`}>
+                                      <span className={`text-xs font-black text-${color}-700 shrink-0`}>{i+1}번</span>
+                                      <div className="flex gap-1 flex-wrap flex-1">
+                                        {DIFFICULTIES.map(d => (
+                                          <button key={d} type="button" onClick={() => updateNewQ(label, i, 'difficulty', d)}
+                                            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-black border transition-all leading-none ${q.difficulty === d ? `bg-${color}-500 border-${color}-500 text-white shadow-sm` : `bg-white border-${color}-200 text-${color}-400`}`}>{d}</button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    <div className="bg-white px-3 py-2.5 space-y-2">
+                                      <div className="flex gap-2">
+                                        <input value={q.unit || ''} onChange={(e) => updateNewQ(label, i, 'unit', e.target.value)}
+                                          placeholder="출제 단원"
+                                          className="flex-1 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:bg-white focus:border-slate-400 text-slate-700 transition-all" />
+                                        <div className="relative shrink-0 w-24">
+                                          <input type="number" min="0" step="0.5" value={q.points ?? ''} onChange={(e) => updateNewQ(label, i, 'points', e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                            placeholder="0"
+                                            className="w-full pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:bg-white focus:border-slate-400 text-slate-700 transition-all" />
+                                          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 pointer-events-none">점</span>
+                                        </div>
+                                      </div>
+                                      <input value={q.detail || ''} onChange={(e) => updateNewQ(label, i, 'detail', e.target.value)}
+                                        placeholder="세부 정보 (오답 포인트, 출제 의도 등)"
+                                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:bg-white focus:border-slate-400 text-slate-600 transition-all" />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    );
+                  })()}
+                  <BufferedTextarea value={newTest.description} onSave={(v) => setNewTest({ ...newTest, description: v })} placeholder="전체 범위 및 메모..." className="w-full h-20 p-4 border rounded-2xl font-medium text-sm outline-none bg-slate-50 focus:bg-white transition-all text-slate-700 shadow-inner" />
                 </div>
               )}
-              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="p-6 border-b font-bold text-slate-800 flex items-center gap-2 justify-center"><Calculator className="text-orange-500" /> 종합 성적표 분석</div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-center border-collapse">
-                    <thead className="bg-slate-50/50 text-slate-400">
-                      <tr>
-                        <th className="p-5 font-black text-[10px] sticky left-0 bg-slate-50 z-20 w-40 border-r text-center leading-none">이름</th>
-                        {/* 중간 테스트 헤더 */}
-                        {tests.filter(t => !t.testType || t.testType === '중간 테스트').map(t => (
-                          <th key={t.id} className="p-5 min-w-[200px] border-b text-left">
-                            <div className="flex flex-col relative group/th text-left">
-                              <div className="flex justify-between items-start mb-1">
-                                <div className="flex items-center gap-1">
-                                  <span className="text-[9px] font-black text-orange-500 uppercase">{t.date}</span>
-                                  <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full leading-none bg-orange-100 text-orange-600">중간</span>
-                                </div>
-                                <div className="flex gap-1">
-                                  <button onClick={() => setSelectedTest(t)} className="p-1 hover:bg-orange-100 rounded text-orange-400 transition-colors"><Search size={14} /></button>
-                                  {userRole === 'master' && <button onClick={() => deleteItem('tests', t.id)} className="p-1 hover:bg-red-50 rounded text-red-200 transition-colors"><Trash2 size={14} /></button>}
-                                </div>
+              {/* ── 중간 테스트 섹션 ── */}
+              {(() => {
+                const mainTests = tests.filter(t => !t.testType || t.testType === '중간 테스트');
+                if (mainTests.length === 0) return null;
+                const collapsed = testSectionCollapsed.main;
+                return (
+                  <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                    {/* 섹션 헤더 - 클릭으로 접기/펼치기 */}
+                    <button onClick={() => setTestSectionCollapsed(p => ({...p, main: !p.main}))}
+                      className="w-full px-6 py-4 flex items-center justify-between hover:bg-orange-50/50 transition-all">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-1 bg-orange-100 text-orange-600 rounded-xl text-xs font-black leading-none">📝 중간 테스트</span>
+                        <span className="text-[11px] font-bold text-slate-400">{mainTests.length}개 · 평균 집계</span>
+                      </div>
+                      <ChevronDown size={16} className={`text-slate-400 transition-transform duration-200 ${collapsed ? '' : 'rotate-180'}`} />
+                    </button>
+                    {!collapsed && (
+                      <>
+                        {/* 모바일 카드형 */}
+                        <div className="block md:hidden border-t border-slate-100 divide-y divide-slate-100">
+                          {visibleStudentsFiltered.map(s => (
+                            <div key={s.id} className="p-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <span className="font-black text-slate-800">{s.name}</span>
+                                <button onClick={() => setSelectedStudent(s)} className="p-1 hover:bg-orange-50 rounded-lg"><Search size={14} className="text-slate-300 hover:text-orange-400"/></button>
                               </div>
-                              <span className="text-xs font-bold text-slate-700 block w-40 text-left leading-tight break-words whitespace-normal">{t.title}</span>
-                              {t.source && <div className="mt-1 flex items-center gap-1 text-indigo-400 bg-white border border-indigo-50 px-1.5 py-0.5 rounded w-fit text-[9px] font-black leading-none shadow-sm"><Bookmark size={10} />{t.source}</div>}
-                              <span className="mt-1 text-[10px] font-black text-indigo-500 uppercase bg-indigo-50 px-1.5 py-0.5 rounded w-fit leading-none">AVG: {stats.testAverages[t.id]}점</span>
-                            </div>
-                          </th>
-                        ))}
-                        {/* 중간/미니 구분선 */}
-                        {tests.some(t => t.testType === '미니 테스트') && (
-                          <th className="w-2 bg-slate-100 border-x border-slate-200 p-0">
-                            <div className="h-full flex items-center justify-center">
-                              <span className="text-[8px] font-black text-slate-400" style={{writingMode:'vertical-rl'}}>미니 테스트</span>
-                            </div>
-                          </th>
-                        )}
-                        {/* 미니 테스트 헤더 */}
-                        {tests.filter(t => t.testType === '미니 테스트').map(t => (
-                          <th key={t.id} className="p-5 min-w-[180px] border-b text-left bg-slate-50/50">
-                            <div className="flex flex-col relative group/th text-left">
-                              <div className="flex justify-between items-start mb-1">
-                                <div className="flex items-center gap-1">
-                                  <span className="text-[9px] font-black text-slate-400 uppercase">{t.date}</span>
-                                  <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full leading-none bg-slate-200 text-slate-500">미니</span>
-                                </div>
-                                <div className="flex gap-1">
-                                  <button onClick={() => setSelectedTest(t)} className="p-1 hover:bg-slate-100 rounded text-slate-400 transition-colors"><Search size={14} /></button>
-                                  {userRole === 'master' && <button onClick={() => deleteItem('tests', t.id)} className="p-1 hover:bg-red-50 rounded text-red-200 transition-colors"><Trash2 size={14} /></button>}
-                                </div>
+                              <div className="space-y-2">
+                                {mainTests.map(t => {
+                                  const res = testScores[`${s.id}-${t.id}`] || { score: '', plan: '', wrongNums: [] };
+                                  const score = res.score;
+                                  const allQs = t.questions || [];
+                                  const wrongNums = res.wrongNums || [];
+                                  const saveWrong = (nums) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { wrongNums: nums }, { merge: true });
+                                  return (
+                                    <div key={t.id} className="rounded-2xl border border-orange-100 bg-orange-50/30 px-3 py-2.5">
+                                      <div className="flex items-start justify-between gap-2 mb-1">
+                                        <div className="min-w-0 flex-1">
+                                          <p className="text-[9px] font-black text-orange-400 mb-0.5">{t.date}{t.source ? ` · ${t.source}` : ''}</p>
+                                          <p className="text-xs font-black text-slate-700 leading-snug break-keep">{t.title}</p>
+                                        </div>
+                                        <div className="shrink-0 text-right">
+                                          <p className="text-base font-black text-slate-800 leading-none">{score !== '' && score != null ? `${score}점` : '-'}</p>
+                                          <p className="text-[9px] text-indigo-500 font-black mt-0.5">AVG {stats.testAverages[t.id]}점</p>
+                                        </div>
+                                      </div>
+                                      {allQs.length > 0 && userRole === 'master' && (
+                                        <div className="mt-2 pt-2 border-t border-orange-100">
+                                          <p className="text-[9px] font-black text-slate-400 mb-1.5">오답 토글</p>
+                                          <div className="flex flex-wrap gap-1">
+                                            {allQs.map((q, qi) => {
+                                              const qLabel = `${q.type === '주관식' ? '주' : '객'}${q.num || qi+1}`;
+                                              const isWrong = wrongNums.includes(qi+1);
+                                              return (
+                                                <button key={qi} onClick={() => { const next = isWrong ? wrongNums.filter(n=>n!==qi+1) : [...wrongNums,qi+1]; saveWrong(next); }}
+                                                  className={`px-2 py-1 rounded-lg text-[10px] font-black border transition-all leading-none ${isWrong ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-slate-200 text-slate-400'}`}>{qLabel}</button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      )}
+                                      {/* 학생/티처: 오답 문항 상세 카드 */}
+                                      {allQs.length > 0 && userRole !== 'master' && wrongNums.length > 0 && (() => {
+                                        const DCOL = {'하':'text-blue-500 bg-blue-50 border-blue-100','중하':'text-cyan-600 bg-cyan-50 border-cyan-100','중':'text-slate-500 bg-slate-100 border-slate-200','중상':'text-amber-600 bg-amber-50 border-amber-100','상':'text-orange-600 bg-orange-50 border-orange-100','극상':'text-red-600 bg-red-50 border-red-100'};
+                                        const wrongQs = wrongNums.sort((a,b)=>a-b).map(n => allQs[n-1]).filter(Boolean);
+                                        return (
+                                          <div className="mt-2 pt-2 border-t border-orange-100 space-y-1.5">
+                                            <p className="text-[9px] font-black text-red-500 flex items-center gap-1"><AlertCircle size={9}/>오답 문항 ({wrongQs.length}개)</p>
+                                            {wrongQs.map((q, i) => (
+                                              <div key={i} className="bg-white border border-red-100 rounded-xl overflow-hidden">
+                                                <div className="flex items-center gap-2 px-2.5 py-1.5 bg-red-50">
+                                                  <span className="text-[10px] font-black text-red-600 shrink-0">{q.type==='주관식'?'주':'객'}{q.num||wrongNums.sort((a,b)=>a-b)[i]}번</span>
+                                                  {q.difficulty && <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md border leading-none ${DCOL[q.difficulty]||'text-slate-500 bg-slate-100 border-slate-200'}`}>{q.difficulty}</span>}
+                                                  {q.points && <span className="text-[9px] font-bold text-slate-400 ml-auto">{q.points}점</span>}
+                                                </div>
+                                                {(q.unit || q.detail) && (
+                                                  <div className="px-2.5 py-2 space-y-0.5">
+                                                    {q.unit && <p className="text-xs font-black text-slate-700 leading-snug">{q.unit}</p>}
+                                                    {q.detail && <p className="text-[10px] text-slate-400 font-medium leading-snug">{q.detail}</p>}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        );
+                                      })()}
+                                      {/* 학생/티처: 오답 없음 표시 */}
+                                      {allQs.length > 0 && userRole !== 'master' && wrongNums.length === 0 && (
+                                        <div className="mt-2 pt-2 border-t border-orange-100">
+                                          <p className="text-[9px] font-black text-emerald-500 flex items-center gap-1"><CheckCircle2 size={9}/>오답 없음</p>
+                                        </div>
+                                      )}
+                                      {res.plan && <div className="mt-1.5 text-[10px] bg-indigo-50 px-2.5 py-1.5 rounded-xl text-indigo-700 font-medium leading-snug">메모: {res.plan}</div>}
+                                    </div>
+                                  );
+                                })}
                               </div>
-                              <span className="text-xs font-bold text-slate-600 block w-40 text-left leading-tight break-words whitespace-normal">{t.title}</span>
-                              {t.source && <div className="mt-1 flex items-center gap-1 text-indigo-400 bg-white border border-indigo-50 px-1.5 py-0.5 rounded w-fit text-[9px] font-black leading-none shadow-sm"><Bookmark size={10} />{t.source}</div>}
                             </div>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-700 text-center">
-                      {visibleStudentsFiltered.map(s => (
-                        <tr key={s.id} className="text-center">
-                          <td className="p-4 font-bold sticky left-0 bg-white z-10 border-r text-center">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <span className="font-black text-slate-800">{s.name}</span>
-                              <button onClick={() => setSelectedStudent(s)} className="p-1 hover:bg-orange-50 rounded-lg transition-colors">
-                                <Search size={13} className="text-slate-300 hover:text-orange-400 transition-colors"/>
-                              </button>
+                          ))}
+                        </div>
+                        {/* 데스크탑 테이블 */}
+                        <div className="hidden md:block overflow-x-auto border-t border-slate-100">
+                          <table className="w-full text-center border-collapse">
+                            <thead className="bg-orange-50/30 text-slate-400">
+                              <tr>
+                                <th className="p-4 font-black text-[10px] sticky left-0 bg-orange-50/60 z-20 w-40 border-r text-center leading-none">이름</th>
+                                {mainTests.map(t => (
+                                  <th key={t.id} className="p-4 min-w-[200px] border-b text-left">
+                                    <div className="flex flex-col relative group/th text-left">
+                                      <div className="flex justify-between items-start mb-1">
+                                        <span className="text-[9px] font-black text-orange-500">{t.date}</span>
+                                        <div className="flex gap-1">
+                                          <button onClick={() => setSelectedTest(t)} className="p-1 hover:bg-orange-100 rounded text-orange-400"><Search size={13} /></button>
+                                          {userRole === 'master' && <button onClick={() => deleteItem('tests', t.id)} className="p-1 hover:bg-red-50 rounded text-red-200"><Trash2 size={13} /></button>}
+                                        </div>
+                                      </div>
+                                      <span className="text-xs font-bold text-slate-700 block w-40 text-left leading-tight break-words whitespace-normal">{t.title}</span>
+                                      {t.source && <div className="mt-1 flex items-center gap-1 text-indigo-400 bg-white border border-indigo-50 px-1.5 py-0.5 rounded w-fit text-[9px] font-black leading-none"><Bookmark size={10}/>{t.source}</div>}
+                                      <span className="mt-1 text-[10px] font-black text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded w-fit leading-none">AVG: {stats.testAverages[t.id]}점</span>
+                                    </div>
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 text-slate-700">
+                              {visibleStudentsFiltered.map(s => (
+                                <tr key={s.id}>
+                                  <td className="p-4 font-bold sticky left-0 bg-white z-10 border-r text-center">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      <span className="font-black text-slate-800">{s.name}</span>
+                                      <button onClick={() => setSelectedStudent(s)} className="p-1 hover:bg-orange-50 rounded-lg"><Search size={13} className="text-slate-300 hover:text-orange-400"/></button>
+                                    </div>
+                                  </td>
+                                  {mainTests.map(t => {
+                                    const res = testScores[`${s.id}-${t.id}`] || { score: '', plan: '', wrongNums: [], partialScores: {} };
+                                    const score = res.score;
+                                    const allQs = t.questions || [];
+                                    const wrongNums = res.wrongNums || [];
+                                    const partialScores = res.partialScores || {};
+                                    const saveWrong = (nums, ps) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { wrongNums: nums, partialScores: ps ?? partialScores }, { merge: true });
+                                    const DCOL = {'하':'text-blue-500','중하':'text-cyan-600','중':'text-slate-500','중상':'text-amber-600','상':'text-orange-600','극상':'text-red-600'};
+                                    // 배점 합계 계산
+                                    const totalPts = allQs.reduce((a,q) => a + (parseFloat(q.points)||0), 0);
+                                    const wrongPts = wrongNums.reduce((a,n) => {
+                                      const q = allQs[n-1];
+                                      if (!q) return a;
+                                      if (q.type === '주관식') {
+                                        const partial = parseFloat(partialScores[n] ?? q.points ?? 0);
+                                        return a + partial;
+                                      }
+                                      return a + (parseFloat(q.points)||0);
+                                    }, 0);
+                                    const calcScore = totalPts > 0 ? (totalPts - wrongPts) : null;
+                                    return (
+                                      <td key={t.id} className="p-3 text-center align-top min-w-[160px]">
+                                        {/* 점수 */}
+                                        {userRole === 'master' ? (
+                                          <div className="mb-2 space-y-1">
+                                            <BufferedInput type="number" value={res.score ?? ''} onSave={(v) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { score: v === '' ? null : parseFloat(v) }, { merge: true })} className="w-full px-2 py-2 rounded-xl bg-orange-50 border border-orange-100 font-black text-center text-lg text-orange-700 focus:border-orange-400 shadow-sm transition-all" step="0.1" />
+                                            {calcScore !== null && <p className="text-[9px] font-bold text-slate-400 text-center">배점계산 {calcScore.toFixed(1)}점</p>}
+                                          </div>
+                                        ) : (
+                                          <div className={`text-xl font-black mb-2 leading-none ${score != null && score !== '' ? 'text-slate-800' : 'text-slate-300'}`}>
+                                            {score != null && score !== '' ? `${score}점` : '-'}
+                                          </div>
+                                        )}
+                                        {/* 오답 문항 */}
+                                        {allQs.length > 0 && (
+                                          <div className="space-y-1.5">
+                                            {userRole === 'master' && <p className="text-[8px] font-black text-slate-300 tracking-widest">오답 토글</p>}
+                                            <div className="flex flex-wrap gap-1 justify-center">
+                                              {allQs.map((q, qi) => {
+                                                const qLabel = `${q.type === '주관식' ? '주' : '객'}${q.num || qi+1}`;
+                                                const isWrong = wrongNums.includes(qi+1);
+                                                const tooltip = [q.difficulty && `난이도 ${q.difficulty}`, q.points && `${q.points}점`, q.unit].filter(Boolean).join(' · ');
+                                                return userRole === 'master' ? (
+                                                  <div key={qi} className="relative group/q">
+                                                    <button onClick={() => {
+                                                      const next = isWrong ? wrongNums.filter(n=>n!==qi+1) : [...wrongNums,qi+1];
+                                                      const ps = {...partialScores};
+                                                      if (!isWrong && q.type === '주관식') ps[qi+1] = q.points ?? 0;
+                                                      else if (isWrong) delete ps[qi+1];
+                                                      saveWrong(next, ps);
+                                                    }}
+                                                      className={`px-2 py-1.5 rounded-lg text-[10px] font-black border-2 transition-all leading-none min-w-[32px] ${isWrong ? 'bg-red-500 border-red-400 text-white shadow-sm' : 'bg-white border-slate-200 text-slate-300 hover:border-red-300 hover:text-red-400'}`}>{qLabel}</button>
+                                                    {tooltip && <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/q:block z-50 pointer-events-none">
+                                                      <div className="bg-slate-800 text-white text-[10px] font-bold px-2 py-1.5 rounded-lg whitespace-nowrap leading-snug shadow-xl">
+                                                        <span className={`font-black ${DCOL[q.difficulty] || 'text-slate-300'}`}>{q.difficulty}</span>{q.points ? ` · ${q.points}점` : ''}{q.unit ? ` · ${q.unit}` : ''}
+                                                      </div>
+                                                      <div className="w-1.5 h-1.5 bg-slate-800 rotate-45 -mt-0.5 mx-auto" />
+                                                    </div>}
+                                                  </div>
+                                                ) : isWrong ? (
+                                                  <div key={qi} className="relative group/q">
+                                                    <span className="px-2 py-1.5 rounded-lg text-[10px] font-black bg-red-100 text-red-600 border border-red-200 leading-none block min-w-[32px] text-center">{qLabel}</span>
+                                                    {tooltip && <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/q:block z-50 pointer-events-none">
+                                                      <div className="bg-slate-800 text-white text-[10px] font-bold px-2 py-1.5 rounded-lg whitespace-nowrap leading-snug shadow-xl">
+                                                        <span className={`font-black ${DCOL[q.difficulty] || 'text-slate-300'}`}>{q.difficulty}</span>{q.points ? ` · ${q.points}점` : ''}{q.unit ? ` · ${q.unit}` : ''}
+                                                      </div>
+                                                      <div className="w-1.5 h-1.5 bg-slate-800 rotate-45 -mt-0.5 mx-auto" />
+                                                    </div>}
+                                                  </div>
+                                                ) : null;
+                                              })}
+                                            </div>
+                                            {/* 서술형 부분점수 직접 수정 */}
+                                            {userRole === 'master' && wrongNums.some(n => allQs[n-1]?.type === '주관식') && (
+                                              <div className="mt-1.5 space-y-1 border-t border-slate-100 pt-1.5">
+                                                <p className="text-[8px] font-black text-slate-300 tracking-widest">서술형 감점</p>
+                                                {wrongNums.filter(n => allQs[n-1]?.type === '주관식').map(n => {
+                                                  const q = allQs[n-1];
+                                                  const qLabel = `주${q.num||n}`;
+                                                  return (
+                                                    <div key={n} className="flex items-center gap-1.5">
+                                                      <span className="text-[9px] font-black text-red-500 w-8 shrink-0">{qLabel}</span>
+                                                      <div className="relative flex-1">
+                                                        <input type="number" min="0" step="0.5" max={q.points||999}
+                                                          value={partialScores[n] ?? (q.points ?? '')}
+                                                          onChange={(e) => {
+                                                            const ps = {...partialScores, [n]: e.target.value === '' ? 0 : parseFloat(e.target.value)};
+                                                            setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { partialScores: ps }, { merge: true });
+                                                          }}
+                                                          className="w-full pl-2 pr-6 py-1 bg-red-50 border border-red-200 rounded-lg text-[10px] font-black text-red-700 outline-none focus:border-red-400 text-center" />
+                                                        <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-red-400 pointer-events-none">점</span>
+                                                      </div>
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                        {/* 메모 */}
+                                        {userRole === 'master' ? (
+                                          <BufferedTextarea value={res.plan} onSave={(v) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { plan: v }, { merge: true })} className="w-full mt-1.5 px-2 py-1.5 rounded-xl bg-slate-50 border-none text-[10px] h-8 resize-none font-medium shadow-inner" placeholder="메모..." />
+                                        ) : res.plan ? (
+                                          <div className="mt-1.5 text-[10px] bg-indigo-50 px-2 py-1.5 rounded-xl text-indigo-600 font-medium leading-snug text-left">{res.plan}</div>
+                                        ) : null}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* ── 미니 테스트 섹션 ── */}
+              {(() => {
+                const miniTests = tests.filter(t => t.testType === '미니 테스트');
+                if (miniTests.length === 0) return null;
+                const collapsed = testSectionCollapsed.mini;
+                return (
+                  <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                    {/* 섹션 헤더 */}
+                    <button onClick={() => setTestSectionCollapsed(p => ({...p, mini: !p.mini}))}
+                      className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-all">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-1 bg-slate-200 text-slate-600 rounded-xl text-xs font-black leading-none">⚡ 미니 테스트</span>
+                        <span className="text-[11px] font-bold text-slate-400">{miniTests.length}개 · 평균 제외</span>
+                      </div>
+                      <ChevronDown size={16} className={`text-slate-400 transition-transform duration-200 ${collapsed ? '' : 'rotate-180'}`} />
+                    </button>
+                    {!collapsed && (
+                      <>
+                        {/* 모바일 카드형 */}
+                        <div className="block md:hidden border-t border-slate-100 divide-y divide-slate-100">
+                          {visibleStudentsFiltered.map(s => (
+                            <div key={s.id} className="p-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <span className="font-black text-slate-800">{s.name}</span>
+                                <button onClick={() => setSelectedStudent(s)} className="p-1 hover:bg-slate-100 rounded-lg"><Search size={14} className="text-slate-300"/></button>
+                              </div>
+                              <div className="space-y-2">
+                                {miniTests.map(t => {
+                                  const res = testScores[`${s.id}-${t.id}`] || { score: '', plan: '', wrongNums: [] };
+                                  const score = res.score;
+                                  const allQs = t.questions || [];
+                                  const wrongNums = res.wrongNums || [];
+                                  const saveWrong = (nums) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { wrongNums: nums }, { merge: true });
+                                  return (
+                                    <div key={t.id} className="rounded-2xl border border-slate-100 bg-slate-50/50 px-3 py-2.5">
+                                      <div className="flex items-start justify-between gap-2 mb-1">
+                                        <div className="min-w-0 flex-1">
+                                          <p className="text-[9px] font-black text-slate-400 mb-0.5">{t.date}{t.source ? ` · ${t.source}` : ''}</p>
+                                          <p className="text-xs font-black text-slate-700 leading-snug break-keep">{t.title}</p>
+                                        </div>
+                                        <p className="text-base font-black text-slate-800 leading-none shrink-0">{score !== '' && score != null ? `${score}점` : '-'}</p>
+                                      </div>
+                                      {allQs.length > 0 && userRole === 'master' && (
+                                        <div className="mt-2 pt-2 border-t border-slate-100">
+                                          <p className="text-[9px] font-black text-slate-400 mb-1.5">오답 토글</p>
+                                          <div className="flex flex-wrap gap-1">
+                                            {allQs.map((q, qi) => {
+                                              const qLabel = `${q.type === '주관식' ? '주' : '객'}${q.num || qi+1}`;
+                                              const isWrong = wrongNums.includes(qi+1);
+                                              return (
+                                                <button key={qi} onClick={() => { const next = isWrong ? wrongNums.filter(n=>n!==qi+1) : [...wrongNums,qi+1]; saveWrong(next); }}
+                                                  className={`px-2 py-1 rounded-lg text-[10px] font-black border transition-all leading-none ${isWrong ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-slate-200 text-slate-400'}`}>{qLabel}</button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      )}
+                                      {allQs.length > 0 && userRole !== 'master' && wrongNums.length > 0 && (() => {
+                                        const DCOL = {'하':'text-blue-500 bg-blue-50 border-blue-100','중하':'text-cyan-600 bg-cyan-50 border-cyan-100','중':'text-slate-500 bg-slate-100 border-slate-200','중상':'text-amber-600 bg-amber-50 border-amber-100','상':'text-orange-600 bg-orange-50 border-orange-100','극상':'text-red-600 bg-red-50 border-red-100'};
+                                        const wrongQs = wrongNums.sort((a,b)=>a-b).map(n => allQs[n-1]).filter(Boolean);
+                                        return (
+                                          <div className="mt-2 pt-2 border-t border-slate-100 space-y-1.5">
+                                            <p className="text-[9px] font-black text-red-500 flex items-center gap-1"><AlertCircle size={9}/>오답 문항 ({wrongQs.length}개)</p>
+                                            {wrongQs.map((q, i) => (
+                                              <div key={i} className="bg-white border border-red-100 rounded-xl overflow-hidden">
+                                                <div className="flex items-center gap-2 px-2.5 py-1.5 bg-red-50">
+                                                  <span className="text-[10px] font-black text-red-600 shrink-0">{q.type==='주관식'?'주':'객'}{q.num||wrongNums.sort((a,b)=>a-b)[i]}번</span>
+                                                  {q.difficulty && <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md border leading-none ${DCOL[q.difficulty]||'text-slate-500 bg-slate-100 border-slate-200'}`}>{q.difficulty}</span>}
+                                                  {q.points && <span className="text-[9px] font-bold text-slate-400 ml-auto">{q.points}점</span>}
+                                                </div>
+                                                {(q.unit || q.detail) && (
+                                                  <div className="px-2.5 py-2 space-y-0.5">
+                                                    {q.unit && <p className="text-xs font-black text-slate-700 leading-snug">{q.unit}</p>}
+                                                    {q.detail && <p className="text-[10px] text-slate-400 font-medium leading-snug">{q.detail}</p>}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        );
+                                      })()}
+                                      {allQs.length > 0 && userRole !== 'master' && wrongNums.length === 0 && (
+                                        <div className="mt-2 pt-2 border-t border-slate-100">
+                                          <p className="text-[9px] font-black text-emerald-500 flex items-center gap-1"><CheckCircle2 size={9}/>오답 없음</p>
+                                        </div>
+                                      )}
+                                      {res.plan && <div className="mt-1.5 text-[10px] bg-indigo-50 px-2.5 py-1.5 rounded-xl text-indigo-700 font-medium leading-snug">메모: {res.plan}</div>}
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
-                          </td>
-                          {/* 중간 테스트 셀들 */}
-                          {tests.filter(t => !t.testType || t.testType === '중간 테스트').map(t => {
-                            const res = testScores[`${s.id}-${t.id}`] || { score: '', plan: '' };
-                            const score = res.score;
-                            return (
-                              <td key={t.id} className="p-4 text-center">
-                                {userRole === 'master' ? (
-                                  <div className="flex flex-col gap-2">
-                                    <BufferedInput type="number" value={res.score ?? ''} onSave={(v) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { score: v === '' ? null : parseFloat(v) }, { merge: true })} className="w-full px-3 py-1.5 rounded-xl bg-slate-50 font-bold text-center text-sm focus:border-orange-500 shadow-sm transition-all" />
-                                    <BufferedTextarea value={res.plan} onSave={(v) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { plan: v }, { merge: true })} className="w-full px-3 py-2 rounded-xl bg-slate-50 border-none text-[10px] h-12 resize-none font-medium shadow-inner text-center" />
-                                  </div>
-                                ) : (
-                                  <div className="space-y-1 text-center">
-                                    <div className="w-full py-1.5 bg-slate-50 rounded-xl font-black text-slate-700 text-sm text-center shadow-sm">{score !== '' && score != null ? `${score}점` : '-'}</div>
-                                    {res.plan && <div className="text-[10px] bg-indigo-50/50 p-2 rounded-xl text-indigo-700 font-medium whitespace-pre-wrap text-center leading-tight shadow-inner">{res.plan}</div>}
+                          ))}
+                        </div>
+                        {/* 데스크탑 테이블 */}
+                        <div className="hidden md:block overflow-x-auto border-t border-slate-100">
+                          <table className="w-full text-center border-collapse">
+                            <thead className="bg-slate-50 text-slate-400">
+                              <tr>
+                                <th className="p-4 font-black text-[10px] sticky left-0 bg-slate-100 z-20 w-40 border-r text-center leading-none">이름</th>
+                                {miniTests.map(t => (
+                                  <th key={t.id} className="p-4 min-w-[180px] border-b text-left bg-slate-50">
+                                    <div className="flex flex-col relative group/th text-left">
+                                      <div className="flex justify-between items-start mb-1">
+                                        <span className="text-[9px] font-black text-slate-400">{t.date}</span>
+                                        <div className="flex gap-1">
+                                          <button onClick={() => setSelectedTest(t)} className="p-1 hover:bg-slate-200 rounded text-slate-400"><Search size={13} /></button>
+                                          {userRole === 'master' && <button onClick={() => deleteItem('tests', t.id)} className="p-1 hover:bg-red-50 rounded text-red-200"><Trash2 size={13} /></button>}
+                                        </div>
+                                      </div>
+                                      <span className="text-xs font-bold text-slate-600 block w-40 text-left leading-tight break-words whitespace-normal">{t.title}</span>
+                                      {t.source && <div className="mt-1 flex items-center gap-1 text-indigo-400 bg-white border border-indigo-50 px-1.5 py-0.5 rounded w-fit text-[9px] font-black leading-none"><Bookmark size={10}/>{t.source}</div>}
+                                    </div>
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 text-slate-700">
+                              {visibleStudentsFiltered.map(s => (
+                                <tr key={s.id}>
+                                  <td className="p-4 font-bold sticky left-0 bg-white z-10 border-r text-center">
+                                    <span className="font-black text-slate-800">{s.name}</span>
+                                  </td>
+                                  {miniTests.map(t => {
+                                    const res = testScores[`${s.id}-${t.id}`] || { score: '', plan: '', wrongNums: [] };
+                                    const score = res.score;
+                                    const allQs = t.questions || [];
+                                    const wrongNums = res.wrongNums || [];
+                                    const saveWrong = (nums) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { wrongNums: nums }, { merge: true });
+                                    const DCOL = {'하':'text-blue-500','중하':'text-cyan-600','중':'text-slate-500','중상':'text-amber-600','상':'text-orange-600','극상':'text-red-600'};
+                                    return (
+                                      <td key={t.id} className="p-3 text-center bg-slate-50/30 align-top min-w-[140px]">
+                                        {userRole === 'master' ? (
+                                          <BufferedInput type="number" value={res.score ?? ''} onSave={(v) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { score: v === '' ? null : parseFloat(v) }, { merge: true })} className="w-full px-2 py-2 rounded-xl bg-white border border-slate-200 font-black text-center text-lg text-slate-700 focus:border-slate-400 shadow-sm transition-all mb-2" step="0.1" />
+                                        ) : (
+                                          <div className={`text-xl font-black mb-2 leading-none ${score != null && score !== '' ? 'text-slate-700' : 'text-slate-300'}`}>
+                                            {score != null && score !== '' ? `${score}점` : '-'}
+                                          </div>
+                                        )}
+                                        {allQs.length > 0 && (
+                                          <div className="space-y-1.5">
+                                            {userRole === 'master' && <p className="text-[8px] font-black text-slate-300 tracking-widest">오답 토글</p>}
+                                            <div className="flex flex-wrap gap-1 justify-center">
+                                              {allQs.map((q, qi) => {
+                                                const qLabel = `${q.type === '주관식' ? '주' : '객'}${q.num || qi+1}`;
+                                                const isWrong = wrongNums.includes(qi+1);
+                                                const tooltip = [q.difficulty, q.unit].filter(Boolean).join(' · ');
+                                                return userRole === 'master' ? (
+                                                  <div key={qi} className="relative group/q">
+                                                    <button onClick={() => { const next = isWrong ? wrongNums.filter(n=>n!==qi+1) : [...wrongNums,qi+1]; saveWrong(next); }}
+                                                      className={`px-2 py-1.5 rounded-lg text-[10px] font-black border-2 transition-all leading-none min-w-[32px] ${isWrong ? 'bg-red-500 border-red-400 text-white shadow-sm' : 'bg-white border-slate-200 text-slate-300 hover:border-red-300 hover:text-red-400'}`}>{qLabel}</button>
+                                                    {tooltip && <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/q:block z-50 pointer-events-none">
+                                                      <div className="bg-slate-800 text-white text-[10px] font-bold px-2 py-1.5 rounded-lg whitespace-nowrap leading-snug shadow-xl">
+                                                        <span className={`font-black ${DCOL[q.difficulty] || 'text-slate-300'}`}>{q.difficulty}</span>{q.unit ? ` · ${q.unit}` : ''}
+                                                      </div>
+                                                      <div className="w-1.5 h-1.5 bg-slate-800 rotate-45 -mt-0.5 mx-auto" />
+                                                    </div>}
+                                                  </div>
+                                                ) : isWrong ? (
+                                                  <div key={qi} className="relative group/q">
+                                                    <span className="px-2 py-1.5 rounded-lg text-[10px] font-black bg-red-100 text-red-600 border border-red-200 leading-none block min-w-[32px] text-center">{qLabel}</span>
+                                                    {tooltip && <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/q:block z-50 pointer-events-none">
+                                                      <div className="bg-slate-800 text-white text-[10px] font-bold px-2 py-1.5 rounded-lg whitespace-nowrap leading-snug shadow-xl">
+                                                        <span className={`font-black ${DCOL[q.difficulty] || 'text-slate-300'}`}>{q.difficulty}</span>{q.unit ? ` · ${q.unit}` : ''}
+                                                      </div>
+                                                      <div className="w-1.5 h-1.5 bg-slate-800 rotate-45 -mt-0.5 mx-auto" />
+                                                    </div>}
+                                                  </div>
+                                                ) : null;
+                                              })}
+                                            </div>
+                                          </div>
+                                        )}
+                                        {userRole === 'master' ? (
+                                          <BufferedTextarea value={res.plan} onSave={(v) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { plan: v }, { merge: true })} className="w-full mt-1.5 px-2 py-1.5 rounded-xl bg-white border-none text-[10px] h-8 resize-none font-medium shadow-inner" placeholder="메모..." />
+                                        ) : res.plan ? (
+                                          <div className="mt-1.5 text-[10px] bg-indigo-50 px-2 py-1.5 rounded-xl text-indigo-600 font-medium leading-snug text-left">{res.plan}</div>
+                                        ) : null}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+              {/* 학생 전용: 취약 단원 종합 분석 */}
+              {userRole === 'student' && (() => {
+                const allWrong = [];
+                tests.forEach(t => {
+                  const allQs = t.questions || [];
+                  if (allQs.length === 0) return;
+                  const wn = testScores[`${myStudentId}-${t.id}`]?.wrongNums || [];
+                  wn.forEach(n => {
+                    const q = allQs[n-1];
+                    if (q) allWrong.push({ t, q, n });
+                  });
+                });
+                if (allWrong.length === 0) return null;
+                const unitMap = {};
+                allWrong.forEach(({q, t}) => {
+                  const key = q.unit || '단원 미기재';
+                  if (!unitMap[key]) unitMap[key] = { count: 0, items: [], difficulty: q.difficulty };
+                  unitMap[key].count++;
+                  unitMap[key].items.push({ t, q });
+                });
+                const sorted = Object.entries(unitMap).sort((a,b) => b[1].count - a[1].count);
+                const DCOL = {'하':'text-blue-500 bg-blue-50 border-blue-100','중하':'text-cyan-600 bg-cyan-50 border-cyan-100','중':'text-slate-500 bg-slate-100 border-slate-200','중상':'text-amber-600 bg-amber-50 border-amber-100','상':'text-orange-600 bg-orange-50 border-orange-100','극상':'text-red-600 bg-red-50 border-red-100'};
+                return (
+                  <div className="bg-white rounded-3xl border border-red-100 shadow-sm overflow-hidden">
+                    <button onClick={() => setWeakUnitOpen(v => !v)}
+                      className="w-full px-5 py-4 bg-red-50 border-b border-red-100 flex items-center gap-2 hover:bg-red-100/60 transition-all active:scale-[0.99]">
+                      <AlertCircle size={16} className="text-red-500 shrink-0"/>
+                      <p className="font-black text-red-700">취약 단원 분석</p>
+                      <span className="text-[10px] font-bold text-red-400 ml-auto">전체 오답 {allWrong.length}개</span>
+                      <ChevronDown size={16} className={`text-red-400 transition-transform duration-200 ml-1 ${weakUnitOpen ? 'rotate-180' : ''}`}/>
+                    </button>
+                    {weakUnitOpen && <div className="divide-y divide-slate-100">
+                      {sorted.map(([unit, {count, items}]) => (
+                        <div key={unit} className="px-4 py-4 space-y-2.5">
+                          {/* 단원 헤더 */}
+                          <div className="flex items-start gap-2">
+                            <span className="font-black text-sm text-slate-800 flex-1 leading-snug break-keep">{unit}</span>
+                            <span className="text-[10px] font-black text-red-500 bg-red-50 border border-red-100 px-2.5 py-1 rounded-xl shrink-0 leading-none">{count}회 오답</span>
+                          </div>
+                          {/* 오답 항목 — 세로 카드 */}
+                          <div className="space-y-2">
+                            {items.map(({t, q}, i) => (
+                              <div key={i} className="bg-slate-50 border border-slate-100 rounded-2xl overflow-hidden">
+                                {/* 상단: 시험명 + 문항번호 + 난이도 */}
+                                <div className="flex items-center gap-2 px-3 py-2 bg-white border-b border-slate-100">
+                                  <span className="text-xs font-black text-slate-700 flex-1 leading-tight break-keep">{t.title}</span>
+                                  <span className="text-[10px] font-black text-red-500 bg-red-50 border border-red-200 px-2 py-0.5 rounded-lg shrink-0 leading-none">
+                                    {q.type==='주관식'?'주':'객'}{q.num||i+1}번
+                                  </span>
+                                  {q.difficulty && (
+                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg border leading-none shrink-0 ${DCOL[q.difficulty]||'text-slate-500 bg-slate-100 border-slate-200'}`}>
+                                      {q.difficulty}
+                                    </span>
+                                  )}
+                                </div>
+                                {/* 하단: 단원 상세 + 세부정보 */}
+                                {(q.unit && q.unit !== unit || q.detail || q.points) && (
+                                  <div className="px-3 py-2 space-y-0.5">
+                                    {q.unit && q.unit !== unit && <p className="text-xs font-bold text-slate-600 leading-snug">{q.unit}</p>}
+                                    {q.points && <p className="text-[10px] font-bold text-slate-400 leading-none">{q.points}점 배점</p>}
+                                    {q.detail && <p className="text-[10px] text-slate-400 font-medium leading-snug">{q.detail}</p>}
                                   </div>
                                 )}
-                              </td>
-                            );
-                          })}
-                          {/* 미니 테스트 구분선 + 셀들 */}
-                          {tests.some(t => t.testType === '미니 테스트') && (
-                            <td className="w-2 bg-slate-100 border-x border-slate-200 p-0"/>
-                          )}
-                          {tests.filter(t => t.testType === '미니 테스트').map(t => {
-                            const res = testScores[`${s.id}-${t.id}`] || { score: '', plan: '' };
-                            const score = res.score;
-                            return (
-                              <td key={t.id} className="p-4 text-center bg-slate-50/30">
-                                {userRole === 'master' ? (
-                                  <div className="flex flex-col gap-2">
-                                    <BufferedInput type="number" value={res.score ?? ''} onSave={(v) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { score: v === '' ? null : parseFloat(v) }, { merge: true })} className="w-full px-3 py-1.5 rounded-xl bg-white font-bold text-center text-sm focus:border-slate-400 shadow-sm transition-all" />
-                                    <BufferedTextarea value={res.plan} onSave={(v) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { plan: v }, { merge: true })} className="w-full px-3 py-2 rounded-xl bg-white border-none text-[10px] h-12 resize-none font-medium shadow-inner text-center" />
-                                  </div>
-                                ) : (
-                                  <div className="space-y-1 text-center">
-                                    <div className="w-full py-1.5 bg-white rounded-xl font-black text-slate-700 text-sm text-center shadow-sm">{score !== '' && score != null ? `${score}점` : '-'}</div>
-                                    {res.plan && <div className="text-[10px] bg-indigo-50/50 p-2 rounded-xl text-indigo-700 font-medium whitespace-pre-wrap text-center leading-tight shadow-inner">{res.plan}</div>}
-                                  </div>
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                    </div>}
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -1979,7 +2475,7 @@ export default function App() {
           {activeTab === 'students' && userRole !== 'student' && (
             <div className="max-w-4xl mx-auto space-y-6 text-left">
               {userRole === 'master' && (
-                <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 text-left text-slate-800">
+                <div className="bg-white p-5 md:p-8 rounded-3xl shadow-sm border border-slate-200 text-left text-slate-800">
                   <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-indigo-600 tracking-tight leading-none"><UserPlus size={22} /> 학생 일괄 등록</h2>
                   <BufferedTextarea value={bulkStudentInput} onSave={setBulkStudentInput} placeholder="이름을 입력하세요..." className="w-full h-32 px-4 py-4 rounded-2xl border bg-slate-50 font-bold resize-none mb-4 outline-none transition-all focus:bg-white text-slate-800 shadow-inner" />
                   <button onClick={() => {
@@ -2348,7 +2844,7 @@ export default function App() {
                   {/* 해당 날짜 계획 리스트 */}
                   <div className="divide-y divide-slate-100">
                     {(plansByDate[progressSelectedDate] || []).length === 0 ? (
-                      <div className="p-8 text-center text-slate-400 font-bold text-sm">이 날의 수업 계획이 없습니다.</div>
+                      <div className="p-5 text-center text-slate-400 font-bold text-sm">이 날의 수업 계획이 없습니다.</div>
                     ) : (
                       (plansByDate[progressSelectedDate] || []).map(plan => (
                         <div key={plan.id} className="px-6 py-4 group hover:bg-slate-50 transition-all">
@@ -2418,7 +2914,7 @@ export default function App() {
             <div className="max-w-4xl mx-auto space-y-6 text-left">
 
               {/* 날짜 범위 + 생성 */}
-              <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+              <div className="bg-white p-5 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
                 <h2 className="text-lg font-bold mb-6 flex items-center gap-2 leading-none" style={{color:'var(--sc)'}}>
                   <Printer size={20} /> 학습 종합 리포트 생성
                 </h2>
@@ -2428,7 +2924,8 @@ export default function App() {
                     <p className="text-[10px] font-black uppercase tracking-widest text-blue-400">시작 날짜</p>
                     <input type="date" value={reportRange.from}
                       onChange={e => setReportRange(r => ({...r, from: e.target.value, to: r.to < e.target.value ? '' : r.to}))}
-                      className="w-full px-4 py-3 rounded-2xl border-2 font-bold outline-none transition-all text-blue-700 shadow-sm bg-blue-50 border-blue-200 focus:border-blue-400" />
+                      className="w-full px-4 py-3 rounded-2xl border-2 font-bold outline-none transition-all text-blue-700 shadow-sm bg-blue-50 border-blue-200 focus:border-blue-400 text-center"
+                      style={{textAlign:'center',WebkitAppearance:'none'}} />
                   </div>
                   {/* 종료 날짜 - 어두운 파란색 */}
                   <div className="space-y-1.5">
@@ -2436,7 +2933,8 @@ export default function App() {
                     <input type="date" value={reportRange.to}
                       min={reportRange.from}
                       onChange={e => setReportRange(r => ({...r, to: e.target.value}))}
-                      className="w-full px-4 py-3 rounded-2xl border-2 font-bold outline-none transition-all shadow-sm bg-blue-900/5 border-blue-700/30 text-blue-900 focus:border-blue-700" />
+                      className="w-full px-4 py-3 rounded-2xl border-2 font-bold outline-none transition-all shadow-sm bg-blue-900/5 border-blue-700/30 text-blue-900 focus:border-blue-700 text-center"
+                      style={{textAlign:'center',WebkitAppearance:'none'}} />
                   </div>
                 </div>
                 {/* 선택된 기간 표시 */}
@@ -2658,41 +3156,56 @@ export default function App() {
 
                                     {/* 시험 성적 (그날 시험이 있을 때만) */}
                                     {dayTests.map(t => {
-                                      const scoreList = students.map(s => ({ s, sc: testScores[`${s.id}-${t.id}`]?.score }));
+                                      const allQs = t.questions || [];
+                                      const scoreList = students.map(s => ({
+                                        s,
+                                        sc: testScores[`${s.id}-${t.id}`]?.score,
+                                        wrongNums: testScores[`${s.id}-${t.id}`]?.wrongNums || [],
+                                        plan: testScores[`${s.id}-${t.id}`]?.plan || '',
+                                      }));
                                       const validScores = scoreList.filter(x => x.sc != null);
                                       const avg = validScores.length ? (validScores.reduce((a,b) => a+b.sc, 0) / validScores.length).toFixed(1) : null;
+                                      // 문항별 오답자 집계
+                                      const qWrongMap = allQs.map((q, qi) => ({
+                                        q, qi,
+                                        wrongStudents: scoreList.filter(x => x.wrongNums.includes(qi+1)).map(x => x.s.name),
+                                      })).filter(x => x.wrongStudents.length > 0);
+                                      const DCOL = {'하':'text-blue-500','중하':'text-cyan-600','중':'text-slate-500','중상':'text-amber-600','상':'text-orange-600','극상':'text-red-600'};
                                       return (
-                                        <div key={t.id}>
-                                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Trophy size={11} className="text-orange-500"/> 시험 — {t.title} {t.difficulty && <span className="text-orange-400">({t.difficulty})</span>}</p>
+                                        <div key={t.id} className="space-y-3">
+                                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Trophy size={11} className="text-orange-500"/> 시험 — {t.title} {t.difficulty && <span className="text-orange-400">({t.difficulty})</span>}{allQs.length > 0 && <span className="text-slate-300">· {allQs.length}문항</span>}</p>
+                                          {/* 학생별 점수 */}
                                           <div className="overflow-x-auto rounded-2xl border border-orange-100">
                                             <table className="w-full border-collapse text-sm">
                                               <thead>
                                                 <tr className="bg-orange-50">
                                                   <th className="px-4 py-2.5 text-left font-black text-[10px] text-orange-600 uppercase tracking-widest sticky left-0 bg-orange-50">학생</th>
                                                   <th className="px-4 py-2.5 text-center font-black text-[10px] text-orange-600 uppercase tracking-widest">점수</th>
-                                                  <th className="px-4 py-2.5 text-center font-black text-[10px] text-orange-600 uppercase tracking-widest">등급</th>
-                                                  <th className="px-4 py-2.5 text-left font-black text-[10px] text-orange-600 uppercase tracking-widest">계획/메모</th>
+                                                  <th className="px-4 py-2.5 text-left font-black text-[10px] text-orange-600 uppercase tracking-widest">오답 문항</th>
+                                                  <th className="px-4 py-2.5 text-left font-black text-[10px] text-orange-600 uppercase tracking-widest">메모</th>
                                                 </tr>
                                               </thead>
                                               <tbody className="divide-y divide-orange-50">
-                                                {scoreList.map(({ s, sc }) => {
-                                                  const plan = testScores[`${s.id}-${t.id}`]?.plan || '';
-                                                  const grade = t.scales ? [...t.scales].sort((a,b)=>b.min-a.min).find(g => sc != null && sc >= g.min) : null;
-                                                  return (
-                                                    <tr key={s.id} className="hover:bg-orange-50/30 transition-colors">
-                                                      <td className="px-4 py-2.5 font-black text-slate-800 sticky left-0 bg-white">{s.name}</td>
-                                                      <td className="px-4 py-2.5 text-center">
-                                                        {sc != null
-                                                          ? <span className={`font-black text-base ${sc>=80?'text-blue-600':sc>=60?'text-amber-500':'text-red-500'}`}>{sc}점</span>
-                                                          : <span className="text-slate-200 text-xs font-bold">미응시</span>}
-                                                      </td>
-                                                      <td className="px-4 py-2.5 text-center">
-                                                        {grade ? <span className="text-xs font-black px-2 py-0.5 rounded-lg bg-slate-100 text-slate-600">{grade.icon} {grade.label}</span> : <span className="text-slate-200 text-xs">-</span>}
-                                                      </td>
-                                                      <td className="px-4 py-2.5 text-xs font-medium text-slate-500 italic">{plan || '-'}</td>
-                                                    </tr>
-                                                  );
-                                                })}
+                                                {scoreList.map(({ s, sc, wrongNums: wn, plan }) => (
+                                                  <tr key={s.id} className="hover:bg-orange-50/30 transition-colors">
+                                                    <td className="px-4 py-2.5 font-black text-slate-800 sticky left-0 bg-white">{s.name}</td>
+                                                    <td className="px-4 py-2.5 text-center">
+                                                      {sc != null ? <span className="font-black text-base text-slate-800">{sc}점</span> : <span className="text-slate-200 text-xs font-bold">미응시</span>}
+                                                    </td>
+                                                    <td className="px-4 py-2.5">
+                                                      {wn.length > 0 ? (
+                                                        <div className="flex flex-wrap gap-1">
+                                                          {wn.sort((a,b)=>a-b).map(n => {
+                                                            const q = allQs[n-1];
+                                                            const lbl = q ? `${q.type==='주관식'?'주':'객'}${q.num||n}` : `${n}번`;
+                                                            return <span key={n} className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-red-100 text-red-600 leading-none">{lbl}</span>;
+                                                          })}
+                                                        </div>
+                                                      ) : <span className="text-slate-200 text-[10px] font-bold">없음</span>}
+                                                    </td>
+                                                    <td className="px-4 py-2.5 text-xs font-medium text-slate-500 italic">{plan || '-'}</td>
+                                                  </tr>
+                                                ))}
                                                 {avg && (
                                                   <tr className="bg-orange-50/60">
                                                     <td className="px-4 py-2 font-black text-orange-600 text-[11px]">반 평균</td>
@@ -2703,6 +3216,28 @@ export default function App() {
                                               </tbody>
                                             </table>
                                           </div>
+                                          {/* 문항별 오답 현황 */}
+                                          {qWrongMap.length > 0 && (
+                                            <div className="bg-red-50/40 rounded-2xl border border-red-100 p-3">
+                                              <p className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-2 flex items-center gap-1"><AlertCircle size={10}/> 문항별 오답 현황</p>
+                                              <div className="space-y-1.5">
+                                                {qWrongMap.map(({q, qi, wrongStudents}) => (
+                                                  <div key={qi} className="flex items-start gap-2 bg-white rounded-xl px-3 py-2 border border-red-100">
+                                                    <span className="text-[10px] font-black text-red-600 bg-red-100 px-1.5 py-0.5 rounded-lg shrink-0">{q.type==='주관식'?'주':'객'}{q.num||qi+1}번</span>
+                                                    {q.difficulty && <span className={`text-[10px] font-black shrink-0 ${DCOL[q.difficulty]||'text-slate-500'}`}>{q.difficulty}</span>}
+                                                    {q.points && <span className="text-[10px] font-bold text-slate-400 shrink-0">{q.points}점</span>}
+                                                    <div className="flex-1 min-w-0">
+                                                      {q.unit && <p className="text-[10px] font-black text-slate-600 leading-none">{q.unit}</p>}
+                                                      <div className="flex flex-wrap gap-1 mt-1">
+                                                        {wrongStudents.map(n => <span key={n} className="text-[9px] font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded">{n}</span>)}
+                                                      </div>
+                                                    </div>
+                                                    <span className="text-[10px] font-black text-red-400 shrink-0">{wrongStudents.length}명</span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
                                         </div>
                                       );
                                     })}
@@ -2864,7 +3399,7 @@ export default function App() {
                                       {s.highSchool && <p className="text-[10px] text-slate-400 font-bold mt-0.5">{s.highSchool}</p>}
                                     </div>
                                     {avgScore !== null && (
-                                      <span className={`text-base font-black ${parseFloat(avgScore)>=80?'text-blue-600':parseFloat(avgScore)>=60?'text-amber-600':'text-red-500'}`}>{avgScore}점</span>
+                                      <span className="text-base font-black text-slate-800">{avgScore}점</span>
                                     )}
                                   </div>
                                   <div className="grid grid-cols-2 gap-2">
@@ -2930,7 +3465,7 @@ export default function App() {
                                     </td>
                                     <td className="px-4 py-3 text-center">
                                       {avgScore !== null ? (
-                                        <span className={`text-sm font-black ${parseFloat(avgScore)>=80?'text-blue-600':parseFloat(avgScore)>=60?'text-amber-600':'text-red-500'}`}>{avgScore}점</span>
+                                        <span className="text-sm font-black text-slate-800">{avgScore}점</span>
                                       ) : <span className="text-slate-300 text-xs font-bold">-</span>}
                                     </td>
                                     <td className="px-4 py-3 text-center"><span className="text-sm font-black text-emerald-600">{present}</span></td>
@@ -2941,6 +3476,66 @@ export default function App() {
                             </table>
                           </div>
                         </div>
+
+                        {/* 학생별 오답 패턴 */}
+                        {rangedTests.length > 0 && (() => {
+                          const DCOL = {'하':'text-blue-500 bg-blue-50','중하':'text-cyan-600 bg-cyan-50','중':'text-slate-500 bg-slate-100','중상':'text-amber-600 bg-amber-50','상':'text-orange-600 bg-orange-50','극상':'text-red-600 bg-red-50'};
+                          const rows = students.map(s => {
+                            const wrongList = [];
+                            rangedTests.forEach(t => {
+                              const allQs = t.questions || [];
+                              const wn = testScores[`${s.id}-${t.id}`]?.wrongNums || [];
+                              if (allQs.length === 0 || wn.length === 0) return;
+                              wn.forEach(n => {
+                                const q = allQs[n-1];
+                                if (q) wrongList.push({ t, q, n });
+                              });
+                            });
+                            return { s, wrongList };
+                          }).filter(x => x.wrongList.length > 0);
+                          if (rows.length === 0) return null;
+                          return (
+                            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                              <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+                                <AlertCircle size={16} className="text-red-500"/>
+                                <p className="font-black text-slate-800">학생별 오답 패턴</p>
+                              </div>
+                              <div className="divide-y divide-slate-100">
+                                {rows.map(({ s, wrongList }) => {
+                                  // 단원별 오답 빈도
+                                  const unitFreq = {};
+                                  wrongList.forEach(({q}) => { if (q.unit) unitFreq[q.unit] = (unitFreq[q.unit]||0)+1; });
+                                  const topUnits = Object.entries(unitFreq).sort((a,b)=>b[1]-a[1]).slice(0,3);
+                                  return (
+                                    <div key={s.id} className="px-5 py-4">
+                                      <div className="flex items-center gap-2 mb-2.5">
+                                        <span className="font-black text-slate-800">{s.name}</span>
+                                        <span className="text-[10px] font-bold text-red-400 bg-red-50 px-2 py-0.5 rounded-lg">오답 {wrongList.length}개</span>
+                                        {topUnits.length > 0 && (
+                                          <span className="text-[10px] font-bold text-slate-400 ml-auto hidden md:block">취약 단원: {topUnits.map(([u,c])=>`${u}(${c})`).join(' · ')}</span>
+                                        )}
+                                      </div>
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {wrongList.map(({t, q, n}, i) => (
+                                          <div key={i} className="flex items-center gap-1 bg-slate-50 border border-slate-100 rounded-xl px-2.5 py-1.5">
+                                            <span className="text-[9px] font-black text-slate-400 shrink-0">{t.title.length > 8 ? t.title.slice(0,8)+'…' : t.title}</span>
+                                            <span className="text-[9px] text-slate-300">·</span>
+                                            <span className="text-[9px] font-black text-red-500">{q.type==='주관식'?'주':'객'}{q.num||n}번</span>
+                                            {q.difficulty && <span className={`text-[9px] font-black px-1 py-0.5 rounded-md leading-none ${DCOL[q.difficulty]||'text-slate-400 bg-slate-100'}`}>{q.difficulty}</span>}
+                                            {q.unit && <span className="text-[9px] font-bold text-slate-500 hidden md:block">{q.unit}</span>}
+                                          </div>
+                                        ))}
+                                      </div>
+                                      {topUnits.length > 0 && (
+                                        <p className="text-[9px] font-bold text-slate-400 mt-2 block md:hidden">취약 단원: {topUnits.map(([u,c])=>`${u}(${c})`).join(' · ')}</p>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         {/* 과제별 완료율 */}
                         {assignStats.length > 0 && (
@@ -3500,7 +4095,7 @@ export default function App() {
                 );
               })()}
               {userRole === 'master' && (
-                <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm text-left leading-none">
+                <div className="bg-white p-5 md:p-8 rounded-3xl border border-slate-200 shadow-sm text-left leading-none">
                   <div className="flex justify-between items-center mb-8 text-left leading-none">
                     <h2 className="text-xl font-bold text-slate-800 leading-none">신규 항목 발행</h2>
                     <div className="flex bg-slate-100 p-1 rounded-xl leading-none">
@@ -3745,7 +4340,7 @@ export default function App() {
         {selectedTest && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in shadow-2xl">
             <div className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden">
-              <div className="bg-orange-600 p-8 text-white flex justify-between items-start shadow-inner leading-none">
+              <div className="bg-orange-600 p-5 md:p-8 text-white flex justify-between items-start shadow-inner leading-none">
                 <div className="flex items-center gap-4 text-left">
                   <div className="w-14 h-14 bg-white/20 rounded-3xl flex items-center justify-center shadow-inner">{isTestEditMode ? <Edit2 size={32} /> : <FileSearch size={32} />}</div>
                   <div className="text-left">
@@ -3755,8 +4350,8 @@ export default function App() {
                 </div>
                 <button onClick={() => { setSelectedTest(null); setIsTestEditMode(false); }} className="p-1 hover:bg-white/10 rounded-full transition-all text-white"><LucideX size={24} /></button>
               </div>
-              <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto text-left shadow-inner">
-                <div className="bg-slate-50 rounded-[2rem] p-8 border border-slate-100 shadow-inner text-left font-bold">
+              <div className="p-4 md:p-8 space-y-4 md:space-y-6 max-h-[80vh] overflow-y-auto text-left">
+                <div className="bg-slate-50 rounded-2xl md:rounded-[2rem] p-4 md:p-8 border border-slate-100 shadow-inner text-left font-bold">
                   {isTestEditMode ? (
                     <div className="space-y-4">
                       <input type="date" value={selectedTest.date} onChange={(e) => setSelectedTest({ ...selectedTest, date: e.target.value })} className="w-full px-4 py-3 border-2 border-slate-100 rounded-2xl font-bold bg-white focus:border-indigo-500 outline-none" />
@@ -3773,7 +4368,96 @@ export default function App() {
                           ))}
                         </div>
                       </div>
-                      <BufferedTextarea value={selectedTest.description} onSave={(v) => setSelectedTest({ ...selectedTest, description: v })} className="w-full h-40 p-5 border-2 border-slate-100 rounded-3xl font-medium text-sm bg-white" />
+                      {/* 문항 수 입력 */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">객관식 문항 수</p>
+                          <div className="relative">
+                            <input type="number" min="0" value={selectedTest.mcCount ?? ''} onChange={(e) => {
+                              const cnt = parseInt(e.target.value) || 0;
+                              const existing = (selectedTest.questions || []).filter(q => q.type === '객관식');
+                              const others = (selectedTest.questions || []).filter(q => q.type !== '객관식');
+                              const newQs = Array.from({length: cnt}, (_, i) => existing[i] || {type:'객관식', num:i+1, difficulty:'중', unit:'', detail:''});
+                              setSelectedTest({ ...selectedTest, mcCount: e.target.value, questions: [...newQs, ...others] });
+                            }} placeholder="0" className="w-full pl-4 pr-16 py-3 border-2 border-slate-100 rounded-2xl font-bold bg-white focus:border-orange-400 outline-none" />
+                            <span className="absolute right-10 top-1/2 -translate-y-1/2 text-[11px] font-black text-slate-400 pointer-events-none">문항</span>
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">주관식 문항 수</p>
+                          <div className="relative">
+                            <input type="number" min="0" value={selectedTest.saCount ?? ''} onChange={(e) => {
+                              const cnt = parseInt(e.target.value) || 0;
+                              const existing = (selectedTest.questions || []).filter(q => q.type === '주관식');
+                              const others = (selectedTest.questions || []).filter(q => q.type !== '주관식');
+                              const newQs = Array.from({length: cnt}, (_, i) => existing[i] || {type:'주관식', num:i+1, difficulty:'중', unit:'', detail:''});
+                              setSelectedTest({ ...selectedTest, saCount: e.target.value, questions: [...others, ...newQs] });
+                            }} placeholder="0" className="w-full pl-4 pr-16 py-3 border-2 border-slate-100 rounded-2xl font-bold bg-white focus:border-indigo-400 outline-none" />
+                            <span className="absolute right-10 top-1/2 -translate-y-1/2 text-[11px] font-black text-slate-400 pointer-events-none">문항</span>
+                          </div>
+                        </div>
+                      </div>
+                      {/* 문항별 세부 정보 입력 */}
+                      {(selectedTest.questions || []).length > 0 && (() => {
+                        const mcQs = (selectedTest.questions || []).filter(q => q.type === '객관식');
+                        const saQs = (selectedTest.questions || []).filter(q => q.type === '주관식');
+                        const updateQ = (type, idx, field, val) => {
+                          const qs = [...(selectedTest.questions || [])];
+                          const target = qs.filter(q => q.type === type)[idx];
+                          if (!target) return;
+                          const gi = qs.indexOf(target);
+                          qs[gi] = { ...target, [field]: val };
+                          setSelectedTest({ ...selectedTest, questions: qs });
+                        };
+                        return (
+                          <div className="space-y-4">
+                            {[{label:'객관식', list:mcQs, color:'orange'}, {label:'주관식', list:saQs, color:'indigo'}].map(({label, list, color}) =>
+                              list.length > 0 && (
+                                <div key={label}>
+                                  <div className={`flex items-center gap-2 mb-2`}>
+                                    <span className={`text-[11px] font-black px-2.5 py-1 bg-${color}-100 text-${color}-600 rounded-xl leading-none`}>{label}</span>
+                                    <span className="text-[10px] font-bold text-slate-400">문항별 정보 입력</span>
+                                  </div>
+                                  <div className="space-y-2.5">
+                                    {list.map((q, i) => (
+                                      <div key={i} className={`border border-${color}-100 rounded-2xl overflow-hidden`}>
+                                        {/* 문항 번호 + 난이도 선택 */}
+                                        <div className={`bg-${color}-50 px-3 py-2 flex items-center gap-2`}>
+                                          <span className={`text-xs font-black text-${color}-700 shrink-0`}>{i+1}번</span>
+                                          <div className="flex gap-1 flex-wrap flex-1">
+                                            {DIFFICULTIES.map(d => (
+                                              <button key={d} onClick={() => updateQ(label, i, 'difficulty', d)}
+                                                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-black border transition-all leading-none ${q.difficulty === d ? `bg-${color}-500 border-${color}-500 text-white shadow-sm` : `bg-white border-${color}-200 text-${color}-400`}`}>{d}</button>
+                                            ))}
+                                          </div>
+                                        </div>
+                                        {/* 단원 + 배점 + 세부정보 입력 */}
+                                        <div className="bg-white px-3 py-2.5 space-y-2">
+                                          <div className="flex gap-2">
+                                            <input value={q.unit || ''} onChange={(e) => updateQ(label, i, 'unit', e.target.value)}
+                                              placeholder="출제 단원"
+                                              className="flex-1 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:bg-white focus:border-slate-400 text-slate-700 transition-all" />
+                                            <div className="relative shrink-0 w-24">
+                                              <input type="number" min="0" step="0.5" value={q.points ?? ''} onChange={(e) => updateQ(label, i, 'points', e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                                placeholder="0"
+                                                className="w-full pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:bg-white focus:border-slate-400 text-slate-700 transition-all" />
+                                              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 pointer-events-none">점</span>
+                                            </div>
+                                          </div>
+                                          <input value={q.detail || ''} onChange={(e) => updateQ(label, i, 'detail', e.target.value)}
+                                            placeholder="세부 정보 (오답 포인트, 출제 의도 등)"
+                                            className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:bg-white focus:border-slate-400 text-slate-600 transition-all" />
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        );
+                      })()}
+                      <BufferedTextarea value={selectedTest.description} onSave={(v) => setSelectedTest({ ...selectedTest, description: v })} className="w-full h-28 p-4 border-2 border-slate-100 rounded-3xl font-medium text-sm bg-white" placeholder="전체 범위 및 메모..." />
                       <button onClick={updateTestDetails} className="w-full py-4 bg-green-600 text-white rounded-xl font-black shadow-lg">저장하기</button>
                     </div>
                   ) : (
@@ -3796,11 +4480,74 @@ export default function App() {
                           <p className="text-sm font-black text-slate-800 leading-none text-center break-all">{selectedTest.source || '-'}</p>
                         </div>
                       </div>
+                      {(selectedTest.mcCount || selectedTest.saCount) && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="flex items-center gap-3 bg-orange-50 border border-orange-100 rounded-2xl px-4 py-3">
+                            <div className="w-8 h-8 bg-orange-100 rounded-xl flex items-center justify-center shrink-0">
+                              <span className="text-xs font-black text-orange-600">객</span>
+                            </div>
+                            <div>
+                              <p className="text-[9px] font-black text-orange-400 uppercase tracking-widest leading-none">객관식</p>
+                              <p className="text-base font-black text-orange-700 leading-tight mt-0.5">{selectedTest.mcCount || 0}<span className="text-xs font-bold ml-0.5">문항</span></p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-100 rounded-2xl px-4 py-3">
+                            <div className="w-8 h-8 bg-indigo-100 rounded-xl flex items-center justify-center shrink-0">
+                              <span className="text-xs font-black text-indigo-600">주</span>
+                            </div>
+                            <div>
+                              <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest leading-none">주관식</p>
+                              <p className="text-base font-black text-indigo-700 leading-tight mt-0.5">{selectedTest.saCount || 0}<span className="text-xs font-bold ml-0.5">문항</span></p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       <div className="flex justify-between items-center border-b border-slate-200 pb-3">
                         <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1 leading-none"><ClipboardList size={14} /> 시험 상세 범위 및 참고사항</p>
                         {userRole === 'master' && <button onClick={() => setIsTestEditMode(true)} className="flex items-center gap-1 text-xs font-bold text-indigo-600 bg-white px-3 py-1.5 rounded-xl border border-indigo-100 hover:bg-indigo-50 shadow-sm"><Edit2 size={12} /> 수정</button>}
                       </div>
-                      <p className="text-slate-700 font-black whitespace-pre-wrap leading-relaxed">{selectedTest.description || "등록된 상세 정보가 없습니다."}</p>
+                      {/* 문항별 정보 표시 */}
+                      {(selectedTest.questions || []).length > 0 && (() => {
+                        const mcQs = (selectedTest.questions || []).filter(q => q.type === '객관식');
+                        const saQs = (selectedTest.questions || []).filter(q => q.type === '주관식');
+                        const DIFF_COLOR = {'하':'text-blue-500 bg-blue-50 border-blue-100','중하':'text-cyan-600 bg-cyan-50 border-cyan-100','중':'text-slate-500 bg-slate-100 border-slate-200','중상':'text-amber-600 bg-amber-50 border-amber-100','상':'text-orange-600 bg-orange-50 border-orange-100','극상':'text-red-600 bg-red-50 border-red-100'};
+                        return (
+                          <div className="space-y-3">
+                            {[{label:'객관식', list:mcQs, color:'orange'}, {label:'주관식', list:saQs, color:'indigo'}].map(({label, list, color}) =>
+                              list.length > 0 && (
+                                <div key={label}>
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <span className={`text-[11px] font-black px-2.5 py-1 bg-${color}-100 text-${color}-600 rounded-xl leading-none`}>{label}</span>
+                                    <span className="text-[10px] font-bold text-slate-400">{list.length}문항</span>
+                                  </div>
+                                  <div className="space-y-2">
+                                    {list.map((q, i) => (
+                                      <div key={i} className={`border border-${color}-100 rounded-2xl overflow-hidden`}>
+                                        <div className={`bg-${color}-50 px-3 py-2 flex items-center gap-2`}>
+                                          <span className={`text-xs font-black text-${color}-700 shrink-0`}>{i+1}번</span>
+                                          <span className={`text-[11px] font-black px-2 py-1 rounded-lg border leading-none ${DIFF_COLOR[q.difficulty] || 'text-slate-500 bg-slate-100 border-slate-200'}`}>{q.difficulty || '-'}</span>
+                                        </div>
+                                        {(q.unit || q.detail) ? (
+                                          <div className="bg-white px-3 py-2.5 space-y-1">
+                                            {q.unit && <p className="text-sm font-black text-slate-700 leading-snug break-keep">{q.unit}</p>}
+                                            {q.detail && <p className="text-xs text-slate-400 font-medium leading-snug break-keep">{q.detail}</p>}
+                                          </div>
+                                        ) : (
+                                          <div className="bg-white px-3 py-2">
+                                            <p className="text-xs text-slate-300 font-medium">정보 없음</p>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        );
+                      })()}
+                      {selectedTest.description && <p className="text-slate-700 font-black whitespace-pre-wrap leading-relaxed">{selectedTest.description}</p>}
+                      {!selectedTest.description && !(selectedTest.questions || []).length && <p className="text-slate-300 font-bold text-sm">등록된 상세 정보가 없습니다.</p>}
                       <button onClick={() => { setSelectedTest(null); setIsTestEditMode(false); }} className="w-full py-5 bg-orange-600 text-white rounded-3xl font-black shadow-lg shadow-orange-100 transition-all active:scale-95 leading-none">확인 완료</button>
                     </div>
                   )}
@@ -3813,14 +4560,14 @@ export default function App() {
         {selectedStudent && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in shadow-2xl">
             <div className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden">
-              <div className="p-8 text-white flex justify-between items-start shadow-inner leading-none" style={{background:'var(--sc-darker)'}}>
+              <div className="p-5 md:p-8 text-white flex justify-between items-start shadow-inner leading-none" style={{background:'var(--sc-darker)'}}>
                 <div>
                   <h2 className="text-xl font-bold text-white text-left leading-none">{selectedStudent.name} 학습 현황</h2>
                   <p className="text-white/60 text-xs font-medium uppercase tracking-widest leading-none mt-2">{selectedStudent.highSchool} | {selectedStudent.homeroomTeacher}</p>
                 </div>
                 <button onClick={() => setSelectedStudent(null)} className="p-1 hover:bg-white/10 rounded-full transition-all text-white"><LucideX size={24} /></button>
               </div>
-              <div className="p-8 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div className="p-4 md:p-8 space-y-4 max-h-[80vh] overflow-y-auto">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-indigo-50 rounded-2xl p-4 text-center">
                     <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">과제 진척도</p>
@@ -3857,34 +4604,64 @@ export default function App() {
                       {tests.map(t => {
                         const sc = testScores[`${selectedStudent.id}-${t.id}`];
                         const score = sc?.score;
-                        const grade = score != null && t.scales
-                          ? [...t.scales].sort((a,b) => b.min - a.min).find(g => score >= g.min)
-                          : null;
                         const avg = parseFloat(stats.testAverages[t.id] || 0);
                         const diff = score != null ? (score - avg).toFixed(1) : null;
+                        const wrongNums = sc?.wrongNums || [];
+                        const isMini = t.testType === '미니 테스트';
                         return (
-                          <div key={t.id} className="flex items-center gap-3 px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-black text-slate-700 truncate">{t.title}</p>
-                              <p className="text-[9px] font-bold text-slate-400 mt-0.5">{t.date}{t.difficulty && ` · ${t.difficulty}`}</p>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              {score != null ? (
-                                <>
-                                  {userRole !== 'student' && grade && <span className="text-[10px] font-black px-2 py-0.5 rounded-lg bg-white border border-slate-200 text-slate-600">{grade.icon} {grade.label}</span>}
-                                  <div className="text-right">
+                          <div key={t.id} className="px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+                            {/* 시험명 + 점수 */}
+                            <div className="flex items-start gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  {isMini && <span className="text-[8px] font-black px-1.5 py-0.5 bg-slate-200 text-slate-500 rounded-full leading-none">미니</span>}
+                                  <p className="text-xs font-black text-slate-700">{t.title}</p>
+                                </div>
+                                <p className="text-[9px] font-bold text-slate-400 mt-0.5">{t.date}{t.difficulty && ` · ${t.difficulty}`}</p>
+                              </div>
+                              <div className="shrink-0 text-right">
+                                {score != null ? (
+                                  <>
                                     <p className="text-base font-black leading-none text-slate-800">{score}점</p>
                                     {userRole !== 'student' && diff !== null && (
                                       <p className={`text-[9px] font-bold mt-0.5 leading-none ${parseFloat(diff)>0?'text-emerald-500':parseFloat(diff)<0?'text-red-400':'text-slate-400'}`}>
                                         평균 대비 {parseFloat(diff)>0?'+':''}{diff}
                                       </p>
                                     )}
-                                  </div>
-                                </>
-                              ) : (
-                                <span className="text-[10px] font-bold text-slate-300">미응시</span>
-                              )}
+                                  </>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-slate-300">미응시</span>
+                                )}
+                              </div>
                             </div>
+                            {/* 오답 문항 표시 */}
+                            {(t.questions || []).length > 0 && wrongNums.length > 0 && (
+                              <div className="pt-1.5 border-t border-slate-200">
+                                <p className="text-[9px] font-black text-red-400 mb-1.5">오답 문항 ({wrongNums.length}개)</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {wrongNums.sort((a,b)=>a-b).map(n => {
+                                    const q = t.questions[n];
+                                    const DIFF_COLOR = {'하':'bg-blue-50 text-blue-500','중하':'bg-cyan-50 text-cyan-600','중':'bg-slate-100 text-slate-500','중상':'bg-amber-50 text-amber-600','상':'bg-orange-50 text-orange-600','극상':'bg-red-50 text-red-600'};
+                                    return (
+                                      <div key={n} className="bg-white border border-red-100 rounded-xl px-2.5 py-1.5">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="text-[10px] font-black text-red-500">{n+1}번</span>
+                                          {q?.difficulty && <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-lg leading-none ${DIFF_COLOR[q.difficulty] || 'bg-slate-100 text-slate-500'}`}>{q.difficulty}</span>}
+                                        </div>
+                                        {q?.unit && <p className="text-[10px] font-bold text-slate-600 mt-0.5 leading-snug">{q.unit}</p>}
+                                        {q?.detail && <p className="text-[9px] text-slate-400 mt-0.5 leading-snug">{q.detail}</p>}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                            {/* questions 없을 때 plan 텍스트 표시 */}
+                            {(t.questions || []).length === 0 && sc?.plan && (
+                              <div className="pt-1.5 border-t border-slate-200">
+                                <p className="text-[10px] text-indigo-600 font-medium leading-snug">{sc.plan}</p>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -3942,7 +4719,7 @@ export default function App() {
         {/* 일괄 처리 날짜 선택 팝업 */}
         {bulkDatePopup && (
           <div className="fixed inset-0 z-[160] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => { setBulkDatePopup(null); setBulkSelectedStatus(null); }}>
-            <div className="bg-white rounded-[2rem] shadow-2xl p-8 w-full max-w-xs animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-[2rem] shadow-2xl p-5 md:p-8 w-full max-w-xs animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-3 bg-indigo-100 rounded-2xl text-indigo-600"><Calendar size={22} /></div>
                 <div>
