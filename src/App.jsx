@@ -3448,18 +3448,77 @@ export default function App() {
                       <div className="text-left leading-none">
                         <p className="text-[10px] font-black text-slate-400 mb-3 uppercase flex items-center gap-1 text-left leading-none"><UserCheck size={12} /> 3. 대상</p>
                         <div className="flex gap-2 mb-3 leading-none">
-                          <button onClick={() => setNewAssignment({ ...newAssignment, type: 'all', targetStudents: [] })} className={`flex-1 py-1.5 rounded-xl text-xs font-bold border-2 leading-none ${newAssignment.type === 'all' ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm' : 'bg-white border-slate-100 text-slate-400'}`}>전체</button>
-                          <button onClick={() => setNewAssignment({ ...newAssignment, type: 'individual' })} className={`flex-1 py-1.5 rounded-xl text-xs font-black border-2 leading-none ${newAssignment.type === 'individual' ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm' : 'bg-white border-slate-100 text-slate-400'}`}>개별</button>
+                          <button onClick={() => setNewAssignment({ ...newAssignment, type: 'all', targetStudents: [] })} className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 leading-none ${newAssignment.type === 'all' ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm' : 'bg-white border-slate-100 text-slate-400'}`}>전체</button>
+                          <button onClick={() => setNewAssignment({ ...newAssignment, type: 'individual' })} className={`flex-1 py-2 rounded-xl text-xs font-black border-2 leading-none ${newAssignment.type === 'individual' ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm' : 'bg-white border-slate-100 text-slate-400'}`}>개별</button>
                         </div>
-                        {newAssignment.type === 'individual' && (
-                          <div className="p-3 bg-slate-50 rounded-2xl border max-h-[100px] overflow-y-auto text-left no-scrollbar shadow-inner leading-none">
-                            {students.map(s => (
-                              <label key={s.id} className="flex items-center gap-1 text-[11px] font-bold text-slate-500 cursor-pointer hover:text-indigo-600 text-left leading-none">
-                                <input type="checkbox" checked={newAssignment.targetStudents.includes(s.id)} onChange={(e) => { const cur = [...newAssignment.targetStudents]; if (e.target.checked) cur.push(s.id); else cur.splice(cur.indexOf(s.id), 1); setNewAssignment({ ...newAssignment, targetStudents: cur }); }} />{s.name}
-                              </label>
-                            ))}
-                          </div>
-                        )}
+                        {newAssignment.type === 'individual' && (() => {
+                          const groups = ['A','B','C','D','E'].filter(g => students.some(s => s.group === g));
+                          const toggleGroup = (g) => {
+                            const inGroup = students.filter(s => s.group === g).map(s => s.id);
+                            const allSelected = inGroup.every(id => newAssignment.targetStudents.includes(id));
+                            let next = [...newAssignment.targetStudents];
+                            if (allSelected) next = next.filter(id => !inGroup.includes(id));
+                            else inGroup.forEach(id => { if (!next.includes(id)) next.push(id); });
+                            setNewAssignment({ ...newAssignment, targetStudents: next });
+                          };
+                          const toggleAll = () => {
+                            const allIds = students.map(s => s.id);
+                            const allSelected = allIds.every(id => newAssignment.targetStudents.includes(id));
+                            setNewAssignment({ ...newAssignment, targetStudents: allSelected ? [] : allIds });
+                          };
+                          return (
+                            <div className="space-y-2">
+                              {/* 그룹 빠른선택 버튼 */}
+                              {groups.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5">
+                                  <button onClick={toggleAll}
+                                    className="px-2.5 py-1.5 rounded-lg text-[10px] font-black border-2 border-slate-200 text-slate-500 bg-white hover:border-indigo-300 hover:text-indigo-600 transition-all leading-none">
+                                    전체선택
+                                  </button>
+                                  {groups.map(g => {
+                                    const inGroup = students.filter(s => s.group === g).map(s => s.id);
+                                    const allSel = inGroup.every(id => newAssignment.targetStudents.includes(id));
+                                    return (
+                                      <button key={g} onClick={() => toggleGroup(g)}
+                                        className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black border-2 transition-all leading-none ${allSel ? 'bg-amber-500 border-amber-500 text-white' : 'border-amber-200 text-amber-600 bg-white hover:border-amber-400'}`}>
+                                        그룹 {g} ({inGroup.length}명)
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                              {/* 학생 개별 선택 그리드 */}
+                              <div className="p-3 bg-slate-50 rounded-2xl border shadow-inner">
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  {students.map(s => {
+                                    const checked = newAssignment.targetStudents.includes(s.id);
+                                    return (
+                                      <button key={s.id}
+                                        onClick={() => {
+                                          const cur = [...newAssignment.targetStudents];
+                                          if (checked) cur.splice(cur.indexOf(s.id), 1);
+                                          else cur.push(s.id);
+                                          setNewAssignment({ ...newAssignment, targetStudents: cur });
+                                        }}
+                                        className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-left transition-all ${checked ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'}`}>
+                                        <div className={`w-4 h-4 rounded-md border-2 flex items-center justify-center shrink-0 ${checked ? 'bg-white border-white' : 'border-slate-300'}`}>
+                                          {checked && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#4f46e5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                        </div>
+                                        <div className="min-w-0">
+                                          <p className="text-xs font-black truncate leading-none">{s.name}</p>
+                                          {s.group && <p className={`text-[9px] font-bold leading-none mt-0.5 ${checked ? 'text-indigo-200' : 'text-amber-500'}`}>그룹 {s.group}</p>}
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                {newAssignment.targetStudents.length > 0 && (
+                                  <p className="text-center text-[10px] font-black text-indigo-600 mt-2">{newAssignment.targetStudents.length}명 선택됨</p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
