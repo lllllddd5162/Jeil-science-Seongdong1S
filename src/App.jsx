@@ -1277,40 +1277,40 @@ export default function App() {
                                     return (
                                       <div key={as.id}
                                         onClick={(e) => { if (userRole === 'master') setStatusMenu({ studentId: s.id, itemId: as.id, category: activeTab === 'matrix' ? 'assignment' : 'memorization', x: e.clientX, y: e.clientY }); }}
-                                        className={`flex items-center justify-between px-3 py-2.5 rounded-2xl border transition-all ${colorClass} ${userRole === 'master' ? 'cursor-pointer active:scale-[0.98]' : 'cursor-default'}`}
+                                        className={`flex items-start gap-2 px-3 py-2.5 rounded-2xl border transition-all ${colorClass} ${userRole === 'master' ? 'cursor-pointer active:scale-[0.98]' : 'cursor-default'}`}
                                       >
-                                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                                          <Icon size={16} className="shrink-0" />
-                                          <div className="min-w-0">
-                                            <p className="text-[11px] font-black truncate leading-tight">{as.title}</p>
-                                            <p className="text-[9px] font-bold opacity-70 leading-none mt-0.5">{as.subject} · {as.level}</p>
-                                          </div>
-                                        </div>
-                                        <div className="flex items-center gap-2 shrink-0 ml-2">
-                                          {activeTab === 'matrix' && as.deadline && diff !== null && diff >= 0 && (
-                                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-lg border leading-none whitespace-nowrap ${diff === 0 ? 'bg-orange-100 text-orange-600 border-orange-200' : diff <= 3 ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-white/60 text-current border-current/20'}`}>
-                                              {diff === 0 ? '마감!' : `D-${diff}`}
-                                            </span>
-                                          )}
-                                          {isOverdue && (
-                                            <span className="flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-lg border leading-none whitespace-nowrap bg-red-100 text-red-600 border-red-200">
-                                              <AlertTriangle size={8} className="shrink-0"/>{overDiff}일 초과
-                                            </span>
-                                          )}
-                                          {activeTab === 'memorization' && status !== 'not_started' && (
-                                            <span className="text-[9px] font-black opacity-80 whitespace-nowrap">{cfg?.label}</span>
-                                          )}
-                                          {(userRole === 'master' || userRole === 'teacher') && ((status === 'completed' && activeTab === 'matrix') || (status === 'round_4' && activeTab === 'memorization')) && sub?.completionDate && (
-                                            userRole === 'master' ? (
-                                              inlineDateEditKey === subKey ? (
-                                                <input type="date" value={sub?.completionDate || ''} onChange={(e) => updateCompletionDate(s.id, as.id, e.target.value, activeTab === 'matrix' ? 'assignment' : 'memorization')} onBlur={() => setInlineDateEditKey(null)} className="text-[9px] border-none bg-white/60 rounded px-1 outline-none font-bold w-24" autoFocus onClick={e => e.stopPropagation()} />
+                                        <Icon size={16} className="shrink-0 mt-0.5" />
+                                        <div className="flex-1 min-w-0">
+                                          {/* 제목 - 2줄까지 허용 */}
+                                          <p className="text-[11px] font-black leading-snug break-keep" style={{wordBreak:'break-word',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{as.title}</p>
+                                          {/* 과목·수준 + 뱃지 행 */}
+                                          <div className="flex flex-wrap items-center gap-1 mt-1">
+                                            <span className="text-[9px] font-bold opacity-70 leading-none">{as.subject} · {as.level}</span>
+                                            {activeTab === 'matrix' && as.deadline && diff !== null && diff >= 0 && (
+                                              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-lg border leading-none whitespace-nowrap ${diff === 0 ? 'bg-orange-100 text-orange-600 border-orange-200' : diff <= 3 ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-white/60 text-current border-current/20'}`}>
+                                                {diff === 0 ? '마감!' : `D-${diff}`}
+                                              </span>
+                                            )}
+                                            {isOverdue && (
+                                              <span className="flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-lg border leading-none whitespace-nowrap bg-red-100 text-red-600 border-red-200">
+                                                <AlertTriangle size={8} className="shrink-0"/>{overDiff}일 초과
+                                              </span>
+                                            )}
+                                            {activeTab === 'memorization' && status !== 'not_started' && (
+                                              <span className="text-[9px] font-black opacity-80 whitespace-nowrap">{cfg?.label}</span>
+                                            )}
+                                            {(userRole === 'master' || userRole === 'teacher') && ((status === 'completed' && activeTab === 'matrix') || (status === 'round_4' && activeTab === 'memorization')) && sub?.completionDate && (
+                                              userRole === 'master' ? (
+                                                inlineDateEditKey === subKey ? (
+                                                  <input type="date" value={sub?.completionDate || ''} onChange={(e) => updateCompletionDate(s.id, as.id, e.target.value, activeTab === 'matrix' ? 'assignment' : 'memorization')} onBlur={() => setInlineDateEditKey(null)} className="text-[9px] border-none bg-white/60 rounded px-1 outline-none font-bold w-24" autoFocus onClick={e => e.stopPropagation()} />
+                                                ) : (
+                                                  <span onClick={(e) => { e.stopPropagation(); setInlineDateEditKey(subKey); }} className="text-[9px] font-bold opacity-60 hover:opacity-100 cursor-pointer whitespace-nowrap">{sub?.completionDate?.split('-').slice(1).join('/') || '날짜'}</span>
+                                                )
                                               ) : (
-                                                <span onClick={(e) => { e.stopPropagation(); setInlineDateEditKey(subKey); }} className="text-[9px] font-bold opacity-60 hover:opacity-100 cursor-pointer whitespace-nowrap">{sub?.completionDate?.split('-').slice(1).join('/') || '날짜'}</span>
+                                                <span className="text-[9px] font-bold opacity-60 whitespace-nowrap">{sub?.completionDate?.split('-').slice(1).join('/')}</span>
                                               )
-                                            ) : (
-                                              <span className="text-[9px] font-bold opacity-60 whitespace-nowrap">{sub?.completionDate?.split('-').slice(1).join('/')}</span>
-                                            )
-                                          )}
+                                            )}
+                                          </div>
                                         </div>
                                       </div>
                                     );
@@ -2845,14 +2845,57 @@ export default function App() {
                           ))}
                         </div>
 
-                        {/* 학생별 요약 표 */}
+                        {/* 학생별 요약 - 모바일 카드 / 데스크탑 테이블 */}
                         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
                           <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
                             <Users size={16} className="text-indigo-500"/>
                             <p className="font-black text-slate-800">학생별 종합 현황</p>
                             <span className="text-[10px] text-slate-400 font-bold ml-auto">{from||'전체'} ~ {to||'전체'}</span>
                           </div>
-                          <div className="overflow-x-auto">
+                          {/* 모바일: 카드 */}
+                          <div className="block md:hidden divide-y divide-slate-100">
+                            {studentSummary.map(({ s, assignPct, doneA, effectiveA, topMemo, present, absent, late, avgScore }) => {
+                              const memoCfg = MEMO_STATUS_CONFIG[MEMO_STATUS_ORDER[topMemo]];
+                              return (
+                                <div key={s.id} className="px-4 py-4">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <div>
+                                      <p className="font-black text-slate-800">{s.name}</p>
+                                      {s.highSchool && <p className="text-[10px] text-slate-400 font-bold mt-0.5">{s.highSchool}</p>}
+                                    </div>
+                                    {avgScore !== null && (
+                                      <span className={`text-base font-black ${parseFloat(avgScore)>=80?'text-blue-600':parseFloat(avgScore)>=60?'text-amber-600':'text-red-500'}`}>{avgScore}점</span>
+                                    )}
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div className="bg-slate-50 rounded-2xl p-3">
+                                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">과제 완료율</p>
+                                      {assignPct !== null ? (
+                                        <>
+                                          <p className={`text-lg font-black leading-none ${assignPct>=80?'text-blue-600':assignPct>=50?'text-amber-600':'text-red-500'}`}>{assignPct}%</p>
+                                          <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1.5">
+                                            <div className={`h-full rounded-full ${assignPct>=80?'bg-blue-400':assignPct>=50?'bg-amber-400':'bg-red-400'}`} style={{width:assignPct+'%'}}/>
+                                          </div>
+                                          <p className="text-[9px] text-slate-400 font-bold mt-1">{doneA}/{effectiveA}건</p>
+                                        </>
+                                      ) : <p className="text-slate-300 font-black">-</p>}
+                                    </div>
+                                    <div className="bg-slate-50 rounded-2xl p-3">
+                                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">암기 / 출결</p>
+                                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-lg ${memoCfg.bg} ${memoCfg.color}`}>{memoCfg.label}</span>
+                                      <div className="flex gap-2 mt-2">
+                                        <span className="text-[10px] font-black text-emerald-600">출석 {present}</span>
+                                        {absent > 0 && <span className="text-[10px] font-black text-red-500">결석 {absent}</span>}
+                                        {late > 0 && <span className="text-[10px] font-black text-amber-600">지각 {late}</span>}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {/* 데스크탑: 테이블 */}
+                          <div className="hidden md:block overflow-x-auto">
                             <table className="w-full text-sm border-collapse">
                               <thead>
                                 <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -2908,24 +2951,19 @@ export default function App() {
                             </div>
                             <div className="divide-y divide-slate-100">
                               {assignStats.map(({ a, done, incomplete, inprog, effective, pct }) => (
-                                <div key={a.id} className="px-6 py-4 flex items-center gap-4">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded">{a.subject}</span>
-                                      <span className="text-[10px] font-bold text-slate-400">{a.level}</span>
-                                      {a.deadline && <span className="text-[10px] font-bold text-slate-400 ml-auto">마감 {a.deadline}</span>}
+                                <div key={a.id} className="px-4 py-4 flex flex-col gap-2">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                        <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded">{a.subject}</span>
+                                        <span className="text-[10px] font-bold text-slate-400">{a.level}</span>
+                                        {a.deadline && <span className="text-[10px] font-bold text-slate-400">마감 {a.deadline}</span>}
+                                      </div>
+                                      <p className="font-black text-sm text-slate-700 break-keep" style={{wordBreak:'break-word'}}>{a.title}</p>
                                     </div>
-                                    <p className="font-black text-sm text-slate-700 truncate">{a.title}</p>
-                                  </div>
-                                  <div className="flex items-center gap-3 shrink-0">
-                                    <div className="flex gap-2 text-[10px] font-black">
-                                      <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">완료 {done}</span>
-                                      {incomplete > 0 && <span className="text-red-500 bg-red-50 px-2 py-1 rounded-lg">미완료 {incomplete}</span>}
-                                      {inprog > 0 && <span className="text-slate-600 bg-slate-100 px-2 py-1 rounded-lg">진행 {inprog}</span>}
-                                    </div>
-                                    <div className="flex flex-col items-end">
-                                      <span className={`text-sm font-black ${pct>=80?'text-blue-600':pct>=50?'text-amber-600':'text-red-500'}`}>{pct}%</span>
-                                      <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden mt-1">
+                                    <div className="flex flex-col items-end shrink-0">
+                                      <span className={`text-lg font-black leading-none ${pct>=80?'text-blue-600':pct>=50?'text-amber-600':'text-red-500'}`}>{pct}%</span>
+                                      <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden mt-1.5">
                                         <div className={`h-full rounded-full ${pct>=80?'bg-blue-400':pct>=50?'bg-amber-400':'bg-red-400'}`} style={{width:pct+'%'}} />
                                       </div>
                                     </div>
