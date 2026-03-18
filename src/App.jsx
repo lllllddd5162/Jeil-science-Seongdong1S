@@ -4592,6 +4592,83 @@ export default function App() {
                       })()}
                       {selectedTest.description && <p className="text-slate-700 font-black whitespace-pre-wrap leading-relaxed">{selectedTest.description}</p>}
                       {!selectedTest.description && !(selectedTest.questions || []).length && <p className="text-slate-300 font-bold text-sm">등록된 상세 정보가 없습니다.</p>}
+                      {/* 출력 버튼 */}
+                      {userRole !== 'student' && (() => {
+                        const t = selectedTest;
+                        const allQs = t.questions || [];
+                        const DCOL = {'하':'#3b82f6','중하':'#06b6d4','중':'#64748b','중상':'#d97706','상':'#ea580c','극상':'#dc2626'};
+                        const scoreList = students.map(s => ({
+                          s,
+                          sc: testScores[`${s.id}-${t.id}`]?.score,
+                          wrongNums: testScores[`${s.id}-${t.id}`]?.wrongNums || [],
+                          plan: testScores[`${s.id}-${t.id}`]?.plan || '',
+                        })).filter(x => x.sc != null);
+                        const avg = scoreList.length ? (scoreList.reduce((a,b)=>a+b.sc,0)/scoreList.length).toFixed(1) : null;
+                        const qWrongMap = allQs.map((q,qi) => ({
+                          q, qi,
+                          wrongStudents: scoreList.filter(x=>x.wrongNums.includes(qi+1)).map(x=>x.s.name),
+                        })).filter(x=>x.wrongStudents.length>0);
+                        const printTest = () => {
+                          const win = window.open('','_blank','width=800,height=900');
+                          const rows = [...students].map(s => {
+                            const res = testScores[`${s.id}-${t.id}`] || {};
+                            const sc = res.score;
+                            const wn = res.wrongNums || [];
+                            const wrongLabels = wn.sort((a,b)=>a-b).map(n => {
+                              const q = allQs[n-1];
+                              return q ? `${q.type==='주관식'?'주':'객'}${q.num||n}` : `${n}번`;
+                            }).join(', ');
+                            const groupBadge = s.group ? `<span style="font-size:10px;font-weight:900;background:#fef3c7;color:#d97706;border:1px solid #fde68a;border-radius:6px;padding:2px 6px;margin-left:5px">${s.group}</span>` : '';
+                            return `<tr style="border-bottom:1px solid #f1f5f9">
+                              <td style="padding:8px 12px;font-weight:700;color:#1e293b">${s.name}${groupBadge}</td>
+                              <td style="padding:8px 12px;text-align:center;font-weight:900;font-size:15px;color:#1e293b">${sc != null ? sc+'점' : '-'}</td>
+                              <td style="padding:8px 12px;font-size:12px;color:#ef4444">${wrongLabels || '-'}</td>
+                              <td style="padding:8px 12px;font-size:12px;color:#64748b;font-style:italic">${res.plan||'-'}</td>
+                            </tr>`;
+                          }).join('');
+                          const qRows = qWrongMap.map(({q,qi,wrongStudents}) =>
+                            `<tr style="border-bottom:1px solid #fef2f2">
+                              <td style="padding:6px 10px;font-weight:900;color:#ef4444;font-size:12px">${q.type==='주관식'?'주':'객'}${q.num||qi+1}번</td>
+                              <td style="padding:6px 10px;font-size:12px;font-weight:700;color:${DCOL[q.difficulty]||'#64748b'}">${q.difficulty||'-'}</td>
+                              <td style="padding:6px 10px;font-size:12px;font-weight:700;color:#64748b">${q.points ? q.points+'점' : '-'}</td>
+                              <td style="padding:6px 10px;font-size:12px;color:#475569">${q.unit||'-'}</td>
+                              <td style="padding:6px 10px;font-size:12px;color:#ef4444;font-weight:700">${wrongStudents.join(', ')} (${wrongStudents.length}명)</td>
+                            </tr>`
+                          ).join('');
+                          win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${t.title} 결과</title>
+                          <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:32px;color:#1e293b;max-width:800px;margin:0 auto}
+                          h1{font-size:22px;font-weight:900;color:#ea580c;margin:0 0 4px}
+                          .meta{font-size:12px;color:#94a3b8;margin-bottom:24px}
+                          .section{margin-bottom:28px}
+                          .section-title{font-size:11px;font-weight:900;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #f1f5f9}
+                          table{width:100%;border-collapse:collapse}
+                          thead td,thead th{background:#fff7ed;padding:8px 12px;font-size:11px;font-weight:900;color:#ea580c;text-transform:uppercase;letter-spacing:.06em}
+                          .avg-row td{background:#fff7ed;font-weight:900;color:#ea580c}
+                          @media print{body{padding:16px}}</style></head><body>
+                          <h1>${t.title}</h1>
+                          <p class="meta">${t.date}${t.source?' · '+t.source:''}${t.difficulty?' · 난이도 '+t.difficulty:''}${avg?' · 반평균 '+avg+'점':''}</p>
+                          <div class="section">
+                            <div class="section-title">📊 학생별 결과</div>
+                            <table><thead><tr><td>이름</td><td style="text-align:center">점수</td><td>오답 문항</td><td>메모</td></tr></thead>
+                            <tbody>${rows}</tbody>
+                            ${avg?`<tfoot><tr class="avg-row"><td style="padding:8px 12px;font-weight:900">반 평균</td><td style="padding:8px 12px;text-align:center;font-size:15px">${avg}점</td><td colspan="2"></td></tr></tfoot>`:''}
+                            </table>
+                          </div>
+                          ${qRows?`<div class="section">
+                            <div class="section-title">⚠️ 문항별 오답 현황</div>
+                            <table><thead><tr><td>문항</td><td>난이도</td><td>배점</td><td>단원</td><td>오답 학생</td></tr></thead>
+                            <tbody>${qRows}</tbody></table>
+                          </div>`:''}
+                          <script>window.onload=function(){window.print();window.close();}<\/script></body></html>`);
+                          win.document.close();
+                        };
+                        return (
+                          <button onClick={printTest}
+                            className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 text-sm">
+                            <Printer size={16}/> 시험 결과 출력
+                          </button>
+                        );
+                      })()}
                       <button onClick={() => { setSelectedTest(null); setIsTestEditMode(false); }} className="w-full py-5 bg-orange-600 text-white rounded-3xl font-black shadow-lg shadow-orange-100 transition-all active:scale-95 leading-none">확인 완료</button>
                     </div>
                   )}
@@ -4684,12 +4761,12 @@ export default function App() {
                                 <p className="text-[9px] font-black text-red-400 mb-1.5">오답 문항 ({wrongNums.length}개)</p>
                                 <div className="flex flex-wrap gap-1.5">
                                   {wrongNums.sort((a,b)=>a-b).map(n => {
-                                    const q = t.questions[n];
+                                    const q = t.questions[n-1];
                                     const DIFF_COLOR = {'하':'bg-blue-50 text-blue-500','중하':'bg-cyan-50 text-cyan-600','중':'bg-slate-100 text-slate-500','중상':'bg-amber-50 text-amber-600','상':'bg-orange-50 text-orange-600','극상':'bg-red-50 text-red-600'};
                                     return (
                                       <div key={n} className="bg-white border border-red-100 rounded-xl px-2.5 py-1.5">
                                         <div className="flex items-center gap-1.5">
-                                          <span className="text-[10px] font-black text-red-500">{n+1}번</span>
+                                          <span className="text-[10px] font-black text-red-500">{q ? `${q.type==='주관식'?'주':'객'}${q.num||n}` : `${n}`}번</span>
                                           {q?.difficulty && <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-lg leading-none ${DIFF_COLOR[q.difficulty] || 'bg-slate-100 text-slate-500'}`}>{q.difficulty}</span>}
                                         </div>
                                         {q?.unit && <p className="text-[10px] font-bold text-slate-600 mt-0.5 leading-snug">{q.unit}</p>}
@@ -4729,6 +4806,66 @@ export default function App() {
                     <p className="text-sm text-slate-600 font-medium whitespace-pre-wrap leading-relaxed">{studentNotes[selectedStudent.id]}</p>
                   </div>
                 )}
+                {/* 학생별 시험 결과 출력 */}
+                {userRole !== 'student' && tests.some(t => testScores[`${selectedStudent.id}-${t.id}`]?.score != null) && (() => {
+                  const DCOL = {'하':'#3b82f6','중하':'#06b6d4','중':'#64748b','중상':'#d97706','상':'#ea580c','극상':'#dc2626'};
+                  const printStudent = () => {
+                    const s = selectedStudent;
+                    const win = window.open('','_blank','width=800,height=900');
+                    const testRows = tests.map(t => {
+                      const res = testScores[`${s.id}-${t.id}`] || {};
+                      const sc = res.score;
+                      if (sc == null) return '';
+                      const allQs = t.questions || [];
+                      const wn = res.wrongNums || [];
+                      const avg = (() => {
+                        const vals = students.map(st => testScores[`${st.id}-${t.id}`]?.score).filter(v=>v!=null);
+                        return vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : null;
+                      })();
+                      const diff = sc != null && avg != null ? (sc - parseFloat(avg)).toFixed(1) : null;
+                      const wrongCards = wn.sort((a,b)=>a-b).map(n => {
+                        const q = allQs[n-1];
+                        if (!q) return `<span style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:4px 8px;font-size:11px;font-weight:700;color:#ef4444">${n}번</span>`;
+                        return `<div style="display:inline-block;background:#fff;border:1px solid #fecaca;border-radius:10px;padding:6px 10px;margin:3px;vertical-align:top">
+                          <div style="font-size:11px;font-weight:900;color:#ef4444">${q.type==='주관식'?'주':'객'}${q.num||n}번${q.difficulty?` <span style="color:${DCOL[q.difficulty]||'#64748b'};font-size:10px">${q.difficulty}</span>`:''}</div>
+                          ${q.unit?`<div style="font-size:10px;color:#475569;margin-top:2px">${q.unit}</div>`:''}
+                          ${q.detail?`<div style="font-size:9px;color:#94a3b8;margin-top:1px">${q.detail}</div>`:''}
+                        </div>`;
+                      }).join('');
+                      const isMini = t.testType === '미니 테스트';
+                      return `<tr style="border-bottom:1px solid #f1f5f9">
+                        <td style="padding:10px 12px">
+                          <div style="font-weight:900;color:#1e293b;font-size:13px">${t.title}</div>
+                          <div style="font-size:11px;color:#94a3b8;margin-top:2px">${t.date}${t.source?' · '+t.source:''}${isMini?' · 미니':''}</div>
+                        </td>
+                        <td style="padding:10px 12px;text-align:center;font-weight:900;font-size:18px;color:#1e293b">${sc}점</td>
+                        <td style="padding:10px 12px;text-align:center;font-size:12px;color:${diff&&parseFloat(diff)>=0?'#10b981':'#ef4444'}">${diff!=null?(parseFloat(diff)>=0?'+':'')+diff+'점':'-'}</td>
+                        <td style="padding:10px 12px">${wrongCards||'<span style="color:#cbd5e1;font-size:12px">없음</span>'}</td>
+                        ${res.plan?`<td style="padding:10px 12px;font-size:11px;color:#64748b;font-style:italic">${res.plan}</td>`:'<td></td>'}
+                      </tr>`;
+                    }).filter(Boolean).join('');
+                    const groupBadgeHtml = s.group ? `<span style="font-size:12px;font-weight:900;background:#fef3c7;color:#d97706;border:1px solid #fde68a;border-radius:8px;padding:3px 8px;margin-left:8px;vertical-align:middle">${s.group}그룹</span>` : '';
+                    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${s.name} 시험 결과</title>
+                    <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:32px;color:#1e293b;max-width:900px;margin:0 auto}
+                    h1{font-size:22px;font-weight:900;margin:0 0 4px}
+                    .meta{font-size:12px;color:#94a3b8;margin-bottom:28px}
+                    table{width:100%;border-collapse:collapse}
+                    thead th{background:#f8fafc;padding:8px 12px;font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase;letter-spacing:.06em;text-align:left;border-bottom:2px solid #e2e8f0}
+                    @media print{body{padding:16px}}</style></head><body>
+                    <h1>${s.name}${groupBadgeHtml} 시험 결과</h1>
+                    <p class="meta">${s.highSchool||''}${s.homeroomTeacher?' · '+s.homeroomTeacher:''} · 출력일: ${new Date(Date.now()+9*60*60*1000).toISOString().split('T')[0]}</p>
+                    <table><thead><tr><th>시험명</th><th style="text-align:center">점수</th><th style="text-align:center">평균대비</th><th>오답 문항</th><th>메모</th></tr></thead>
+                    <tbody>${testRows}</tbody></table>
+                    <script>window.onload=function(){window.print();window.close();}<\/script></body></html>`);
+                    win.document.close();
+                  };
+                  return (
+                    <button onClick={printStudent}
+                      className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 text-sm">
+                      <Printer size={16}/> 학생 시험 결과 출력
+                    </button>
+                  );
+                })()}
                 <button onClick={() => setSelectedStudent(null)} className="w-full py-4 text-white rounded-2xl font-black shadow-lg transition-all active:scale-95 leading-none" style={{background:'var(--sc-darker)'}}>닫기</button>
               </div>
             </div>
