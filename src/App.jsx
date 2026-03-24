@@ -518,6 +518,13 @@ export default function App() {
 
   const [matrixHideDone, setMatrixHideDone] = useState(false);
   const [collapsedWeeks, setCollapsedWeeks] = useState({});
+  const [classrooms, setClassrooms] = useState([]);
+  const [activeClassFilter, setActiveClassFilter] = useState("all");
+  const [editingClassrooms, setEditingClassrooms] = useState(false);
+  const [classroomInput, setClassroomInput] = useState("");
+  const [studentGoals, setStudentGoals] = useState({});
+  // 드래그 순서 조정
+  const [dragState, setDragState] = useState({ type: null, fromId: null, overId: null });
   const [testSectionCollapsed, setTestSectionCollapsed] = useState({ main: false, mini: false });
   const [weakUnitOpen, setWeakUnitOpen] = useState(true);
 
@@ -540,7 +547,7 @@ export default function App() {
   const [statusMenu, setStatusMenu] = useState(null);
 
   const [editStudentId, setEditStudentId] = useState(null);
-  const [editStudentData, setEditStudentData] = useState({ name: '', studentCode: '', homeroomTeacher: '', highSchool: '', group: '' });
+  const [editStudentData, setEditStudentData] = useState({ name: '', studentCode: '', homeroomTeacher: '', highSchool: '', group: '', classroomId: '' });
   const [editItemId, setEditItemId] = useState(null);
   const [editItemData, setEditItemData] = useState(null);
 
@@ -556,8 +563,9 @@ export default function App() {
   // --- Logic Hooks ---
   const visibleStudentsFiltered = useMemo(() => {
     if (userRole === 'student' && myStudentId) return students.filter(s => s.id === myStudentId);
+    if (activeClassFilter !== 'all') return students.filter(s => s.classroomId === activeClassFilter);
     return students;
-  }, [students, userRole, myStudentId]);
+  }, [students, userRole, myStudentId, activeClassFilter]);
 
   const stats = useMemo(() => {
     if (!students || students.length === 0) return { assign: {}, memo: {}, studentTestAverages: {}, testAverages: {} };
@@ -797,11 +805,18 @@ export default function App() {
     const batch = writeBatch(db);
     const coll = category === 'assignment' ? 'submissions' : 'memoSubmissions';
     const actualDate = (nextStatus === 'completed' || nextStatus === 'round_4') ? bulkSelectedDate : null;
-    students.forEach(s => {
-      if (item.type === 'all' || (item.targetStudents && item.targetStudents.includes(s.id))) {
-        batch.set(doc(db, 'artifacts', appId, 'public', 'data', coll, `${s.id}-${item.id}`), { status: nextStatus, completionDate: actualDate }, { merge: true });
-      }
-    });
+    // 모바일 학생별 일괄: 해당 학생의 여러 과제를 한번에
+    if (item.isBulkStudent) {
+      (item.items || []).forEach(as => {
+        batch.set(doc(db, 'artifacts', appId, 'public', 'data', coll, `${item.studentId}-${as.id}`), { status: nextStatus, completionDate: actualDate }, { merge: true });
+      });
+    } else {
+      students.forEach(s => {
+        if (item.type === 'all' || (item.targetStudents && item.targetStudents.includes(s.id))) {
+          batch.set(doc(db, 'artifacts', appId, 'public', 'data', coll, `${s.id}-${item.id}`), { status: nextStatus, completionDate: actualDate }, { merge: true });
+        }
+      });
+    }
     await batch.commit();
     setOpenBulkMenu(null);
     setBulkDatePopup(null);
@@ -861,6 +876,30 @@ export default function App() {
     const batch = writeBatch(db);
     batch.set(doc(db, 'artifacts', appId, 'public', 'data', coll, a.id), { sortOrder: bOrder }, { merge: true });
     batch.set(doc(db, 'artifacts', appId, 'public', 'data', coll, b.id), { sortOrder: aOrder }, { merge: true });
+    await batch.commit();
+  };
+
+  // 범용 순서 조정: 드래그 drop 시 호출
+  const reorderList = async (type, fromId, toId) => {
+    if (userRole !== 'master' || fromId === toId) return;
+    let list, coll;
+    if (type === 'assignment') { list = assignments; coll = 'assignments'; }
+    else if (type === 'memo') { list = memoItems; coll = 'memoItems'; }
+    else if (type === 'test') { list = tests; coll = 'tests'; }
+    else if (type === 'student') { list = students; coll = 'students'; }
+    else return;
+    const fromIdx = list.findIndex(x => x.id === fromId);
+    const toIdx = list.findIndex(x => x.id === toId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    // 새 순서 배열 생성
+    const newList = [...list];
+    const [moved] = newList.splice(fromIdx, 1);
+    newList.splice(toIdx, 0, moved);
+    // Firebase 일괄 업데이트
+    const batch = writeBatch(db);
+    newList.forEach((item, i) => {
+      batch.set(doc(db, 'artifacts', appId, 'public', 'data', coll, item.id), { sortOrder: i }, { merge: true });
+    });
     await batch.commit();
   };
 
@@ -947,18 +986,20 @@ export default function App() {
           if (u) {
             const basePath = ['artifacts', appId, 'public', 'data'];
             unsubscribers.push(onSnapshot(doc(db, ...basePath, 'settings', 'config'), snap => { if (snap.exists()) { setSiteTitle(snap.data().siteTitle || 'Science Academy'); if (snap.data().siteColor) setSiteColor(snap.data().siteColor); if (snap.data().subjects) setSubjects(snap.data().subjects); } }));
-            unsubscribers.push(onSnapshot(query(collection(db, ...basePath, 'students')), s => setStudents(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.name.localeCompare(b.name, 'ko')))));
+            unsubscribers.push(onSnapshot(query(collection(db, ...basePath, 'students')), s => setStudents(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => { if (a.sortOrder != null && b.sortOrder != null) return a.sortOrder - b.sortOrder; if (a.sortOrder != null) return -1; if (b.sortOrder != null) return 1; return a.name.localeCompare(b.name, 'ko'); }))));
             unsubscribers.push(onSnapshot(query(collection(db, ...basePath, 'assignments')), s => setAssignments(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)))));
             unsubscribers.push(onSnapshot(query(collection(db, ...basePath, 'memoItems')), s => setMemoItems(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)))));
             unsubscribers.push(onSnapshot(query(collection(db, ...basePath, 'submissions')), s => { const d = {}; s.docs.forEach(x => d[x.id] = x.data()); setSubmissions(d); }));
             unsubscribers.push(onSnapshot(query(collection(db, ...basePath, 'memoSubmissions')), s => { const d = {}; s.docs.forEach(x => d[x.id] = x.data()); setMemoSubmissions(d); }));
-            unsubscribers.push(onSnapshot(query(collection(db, ...basePath, 'tests')), s => setTests(s.docs.map(d => ({ id: d.id, ...d.data() })))));
+            unsubscribers.push(onSnapshot(query(collection(db, ...basePath, 'tests')), s => setTests(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.sortOrder||0)-(b.sortOrder||0)))));
             unsubscribers.push(onSnapshot(query(collection(db, ...basePath, 'testScores')), s => { const d = {}; s.docs.forEach(x => d[x.id] = x.data()); setTestScores(d); }));
             unsubscribers.push(onSnapshot(query(collection(db, ...basePath, 'attendance')), s => { const d = {}; s.docs.forEach(x => d[x.id] = x.data()); setAttendance(d); }));
             unsubscribers.push(onSnapshot(query(collection(db, ...basePath, 'attendanceNotes')), s => { const d = {}; s.docs.forEach(x => d[x.id] = x.data().note); setAttendanceNotes(d); }));
             unsubscribers.push(onSnapshot(query(collection(db, ...basePath, 'makeupDates')), s => { const d = {}; s.docs.forEach(x => d[x.id] = x.data().date); setMakeupDates(d); }));
             unsubscribers.push(onSnapshot(query(collection(db, ...basePath, 'notes')), s => { const d = {}; s.docs.forEach(x => d[x.id] = x.data().note); setStudentNotes(d); }));
             unsubscribers.push(onSnapshot(query(collection(db, ...basePath, 'studentScores')), s => { const d = {}; s.docs.forEach(x => d[x.id] = x.data()); setStudentScoreData(d); }));
+            unsubscribers.push(onSnapshot(query(collection(db, ...basePath, 'classrooms')), s => setClassrooms(s.docs.map(d => ({ id: d.id, ...d.data() })))));
+            unsubscribers.push(onSnapshot(query(collection(db, ...basePath, 'studentGoals')), s => { const d = {}; s.docs.forEach(x => d[x.id] = x.data()); setStudentGoals(d); }));
             unsubscribers.push(onSnapshot(query(collection(db, ...basePath, 'progressPlans')), s => setProgressPlans(s.docs.map(d => ({ id: d.id, ...d.data() })))));
 
             // [FIX 3] notes 콜백 의존 제거: 인증 완료 후 바로 로딩 해제
@@ -1148,6 +1189,19 @@ export default function App() {
                   <span className="flex items-center gap-1 text-[10px] font-black text-slate-400 bg-slate-100 px-2 py-1 rounded-full">
                     <Users size={11}/>{visibleStudentsFiltered.length}명
                   </span>
+                  {/* 반 필터 - master/teacher만 */}
+                  {userRole !== 'student' && classrooms.length > 0 && (
+                    <div className="flex gap-1 flex-wrap">
+                      <button onClick={() => setActiveClassFilter('all')}
+                        className={`px-2.5 py-1 rounded-xl text-[10px] font-black border transition-all ${activeClassFilter === 'all' ? 'text-white border-transparent shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                        style={activeClassFilter === 'all' ? {background:'var(--sc)'} : {}}>전체</button>
+                      {classrooms.map(c => (
+                        <button key={c.id} onClick={() => setActiveClassFilter(c.id)}
+                          className={`px-2.5 py-1 rounded-xl text-[10px] font-black border transition-all ${activeClassFilter === c.id ? 'text-white border-transparent shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                          style={activeClassFilter === c.id ? {background:'var(--sc)'} : {}}>{c.name}</button>
+                      ))}
+                    </div>
+                  )}
                   {userRole !== 'student' && (
                     <div className="ml-auto">
                       <button onClick={() => setMatrixHideDone(v => !v)}
@@ -1254,6 +1308,13 @@ export default function App() {
                                       <p className={`text-xs font-black ${activeTab === 'matrix' ? 'text-indigo-700' : 'text-purple-700'}`}>{pctText}</p>
                                       <p className={`text-[10px] font-black ${activeTab === 'matrix' ? 'text-indigo-400' : 'text-purple-400'}`}>{labelText}</p>
                                     </div>
+                                    {/* 모바일 일괄 버튼 */}
+                                    {userRole === 'master' && (
+                                      <button onClick={() => { setBulkSelectedDate(new Date().toISOString().split('T')[0]); setBulkSelectedStatus(null); setBulkDatePopup({ item: { id: `bulk-student-${s.id}`, title: `${s.name} 전체 과제`, isBulkStudent: true, studentId: s.id, items: visibleItemsM.filter(a => a.type === 'all' || a.targetStudents?.includes(s.id)) }, category: activeTab === 'matrix' ? 'assignment' : 'memorization' }); }}
+                                        className="p-2 bg-indigo-50 rounded-xl text-indigo-500 hover:bg-indigo-100 transition-colors">
+                                        <ListChecks size={16}/>
+                                      </button>
+                                    )}
                                     <button onClick={() => setSelectedStudent(s)}><Search size={16} className="text-slate-300 hover:text-indigo-600 transition-colors" /></button>
                                   </div>
                                 </div>
@@ -1790,7 +1851,13 @@ export default function App() {
                                           <p className="text-xs font-black text-slate-700 leading-snug break-keep">{t.title}</p>
                                         </div>
                                         <div className="shrink-0 text-right">
-                                          <p className="text-base font-black text-slate-800 leading-none">{score !== '' && score != null ? `${score}점` : '-'}</p>
+                                          {userRole === 'master' ? (
+                                            <BufferedInput type="number" value={res.score ?? ''}
+                                              onSave={(v) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { score: v === '' ? null : parseFloat(v) }, { merge: true })}
+                                              className="w-20 px-2 py-1.5 rounded-xl bg-white border border-orange-200 font-bold text-center text-sm focus:border-orange-400 shadow-sm transition-all" />
+                                          ) : (
+                                            <p className="text-base font-black text-slate-800 leading-none">{score !== '' && score != null ? `${score}점` : '-'}</p>
+                                          )}
                                           <p className="text-[9px] text-indigo-500 font-black mt-0.5">AVG {stats.testAverages[t.id]}점</p>
                                         </div>
                                       </div>
@@ -1855,10 +1922,18 @@ export default function App() {
                               <tr>
                                 <th className="p-4 font-black text-[10px] sticky left-0 bg-orange-50/60 z-20 w-40 border-r text-center leading-none">이름</th>
                                 {mainTests.map(t => (
-                                  <th key={t.id} className="p-4 min-w-[200px] border-b text-left">
+                                  <th key={t.id}
+                                    draggable={userRole === 'master'}
+                                    onDragStart={() => setDragState({ type: 'test', fromId: t.id, overId: null })}
+                                    onDragOver={(e) => { e.preventDefault(); setDragState(p => ({ ...p, overId: t.id })); }}
+                                    onDragEnd={() => { if (dragState.fromId && dragState.overId) reorderList('test', dragState.fromId, dragState.overId); setDragState({ type: null, fromId: null, overId: null }); }}
+                                    className={`p-4 min-w-[200px] border-b text-left transition-all ${dragState.overId === t.id && dragState.fromId !== t.id ? 'bg-orange-100' : ''} ${userRole === 'master' ? 'cursor-grab active:cursor-grabbing' : ''}`}>
                                     <div className="flex flex-col relative group/th text-left">
                                       <div className="flex justify-between items-start mb-1">
-                                        <span className="text-[9px] font-black text-orange-500">{t.date}</span>
+                                        <div className="flex items-center gap-1">
+                                          {userRole === 'master' && <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" className="text-slate-300 shrink-0"><circle cx="2.5" cy="3" r="1.2"/><circle cx="7.5" cy="3" r="1.2"/><circle cx="2.5" cy="7" r="1.2"/><circle cx="7.5" cy="7" r="1.2"/><circle cx="2.5" cy="11" r="1.2"/><circle cx="7.5" cy="11" r="1.2"/></svg>}
+                                          <span className="text-[9px] font-black text-orange-500">{t.date}</span>
+                                        </div>
                                         <div className="flex gap-1">
                                           <button onClick={() => setSelectedTest(t)} className="p-1 hover:bg-orange-100 rounded text-orange-400"><Search size={13} /></button>
                                           {userRole === 'master' && <button onClick={() => deleteItem('tests', t.id)} className="p-1 hover:bg-red-50 rounded text-red-200"><Trash2 size={13} /></button>}
@@ -2046,7 +2121,15 @@ export default function App() {
                                           </div>
                                           <p className="text-xs font-black text-slate-700 leading-snug break-keep">{t.title}</p>
                                         </div>
-                                        <p className="text-base font-black text-slate-800 leading-none shrink-0">{score !== '' && score != null ? `${score}점` : '-'}</p>
+                                        <div className="shrink-0 text-right">
+                                          {userRole === 'master' ? (
+                                            <BufferedInput type="number" value={res.score ?? ''}
+                                              onSave={(v) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { score: v === '' ? null : parseFloat(v) }, { merge: true })}
+                                              className="w-20 px-2 py-1.5 rounded-xl bg-white border border-slate-200 font-bold text-center text-sm focus:border-slate-400 shadow-sm transition-all" />
+                                          ) : (
+                                            <p className="text-base font-black text-slate-800 leading-none">{score !== '' && score != null ? `${score}점` : '-'}</p>
+                                          )}
+                                        </div>
                                       </div>
                                       {allQs.length > 0 && userRole === 'master' && (
                                         <div className="mt-2 pt-2 border-t border-slate-100">
@@ -2507,6 +2590,43 @@ export default function App() {
           {/* 학생 관리 탭 */}
           {activeTab === 'students' && userRole !== 'student' && (
             <div className="max-w-4xl mx-auto space-y-6 text-left">
+              {/* 반 설정 - master 전용 */}
+              {userRole === 'master' && (
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-base font-black text-slate-800 flex items-center gap-2"><Users size={16} className="text-indigo-500"/> 반 설정</h2>
+                    <button onClick={() => setEditingClassrooms(v => !v)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${editingClassrooms ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>
+                      {editingClassrooms ? '완료' : '편집'}
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {classrooms.map((c) => (
+                      <div key={c.id} className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-sm font-black border ${editingClassrooms ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
+                        {c.name}
+                        {editingClassrooms && (
+                          <button onClick={async () => {
+                            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'classrooms', c.id));
+                          }} className="ml-1 text-indigo-300 hover:text-red-500 transition-colors font-black leading-none">×</button>
+                        )}
+                      </div>
+                    ))}
+                    {editingClassrooms && (
+                      <div className="flex items-center gap-1">
+                        <input value={classroomInput} onChange={e => setClassroomInput(e.target.value)}
+                          onKeyDown={async e => { if (e.key === 'Enter' && classroomInput.trim()) { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'classrooms', 'c'+Date.now()), { name: classroomInput.trim() }); setClassroomInput(''); }}}
+                          placeholder="반 이름 추가..." className="px-3 py-1.5 rounded-xl text-sm font-bold border border-indigo-200 bg-white outline-none focus:border-indigo-400 w-28 text-slate-700" />
+                        <button onClick={async () => { if (classroomInput.trim()) { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'classrooms', 'c'+Date.now()), { name: classroomInput.trim() }); setClassroomInput(''); }}}
+                          className="px-2.5 py-1.5 rounded-xl bg-indigo-500 text-white text-xs font-black">+</button>
+                      </div>
+                    )}
+                    {classrooms.length === 0 && !editingClassrooms && (
+                      <span className="text-xs text-slate-400 font-medium">편집 버튼을 눌러 반을 추가하세요</span>
+                    )}
+                  </div>
+                  {editingClassrooms && <p className="text-[10px] text-slate-400 font-medium mt-2">Enter 또는 + 버튼으로 추가 · × 로 삭제</p>}
+                </div>
+              )}
               {userRole === 'master' && (
                 <div className="bg-white p-5 md:p-8 rounded-3xl shadow-sm border border-slate-200 text-left text-slate-800">
                   <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-indigo-600 tracking-tight leading-none"><UserPlus size={22} /> 학생 일괄 등록</h2>
@@ -2526,7 +2646,12 @@ export default function App() {
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {students.map(s => (
-                  <div key={s.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm group transition-all text-left leading-none">
+                  <div key={s.id}
+                    draggable={userRole === 'master' && !editStudentId}
+                    onDragStart={() => setDragState({ type: 'student', fromId: s.id, overId: null })}
+                    onDragOver={(e) => { e.preventDefault(); setDragState(p => ({ ...p, overId: s.id })); }}
+                    onDragEnd={() => { if (dragState.fromId && dragState.overId) reorderList('student', dragState.fromId, dragState.overId); setDragState({ type: null, fromId: null, overId: null }); }}
+                    className={`bg-white p-6 rounded-3xl border border-slate-200 shadow-sm group transition-all text-left leading-none ${dragState.overId === s.id && dragState.fromId !== s.id ? 'ring-2 ring-indigo-400 scale-[1.01]' : ''} ${userRole === 'master' && !editStudentId ? 'cursor-grab active:cursor-grabbing' : ''}`}>
                     {editStudentId === s.id ? (
                       <div className="space-y-4 animate-in slide-in-from-top-2 text-left leading-none">
                         <div className="grid grid-cols-2 gap-3 text-left leading-none">
@@ -2535,6 +2660,20 @@ export default function App() {
                           <div className="space-y-1 text-left leading-none"><label className="text-[10px] text-slate-400 font-black leading-none">담임</label><input value={editStudentData.homeroomTeacher} onChange={(e) => setEditStudentData({ ...editStudentData, homeroomTeacher: e.target.value })} className="w-full px-3 py-2 border rounded-xl font-bold text-sm bg-slate-50 text-slate-800 outline-none shadow-sm focus:border-indigo-500 leading-none" /></div>
                           <div className="space-y-1 text-left leading-none"><label className="text-[10px] text-slate-400 font-black leading-none">고교</label><input value={editStudentData.highSchool} onChange={(e) => setEditStudentData({ ...editStudentData, highSchool: e.target.value })} className="w-full px-3 py-2 border rounded-xl font-bold text-sm bg-slate-50 text-slate-800 outline-none shadow-sm focus:border-indigo-500 leading-none" /></div>
                         </div>
+                        {/* 반 배정 - master/teacher 전용 */}
+                        {classrooms.length > 0 && (
+                          <div className="space-y-2 p-3 bg-indigo-50 border border-indigo-200 rounded-2xl">
+                            <label className="text-[10px] font-black text-indigo-700 flex items-center gap-1"><Users size={11}/> 반 배정</label>
+                            <div className="flex flex-wrap gap-1.5">
+                              {[{ id: '', name: '미배정' }, ...classrooms].map(c => (
+                                <button key={c.id} onClick={() => setEditStudentData({ ...editStudentData, classroomId: c.id })}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-black border-2 transition-all ${(editStudentData.classroomId || '') === c.id ? 'bg-indigo-500 border-indigo-500 text-white shadow-sm' : 'border-indigo-200 text-indigo-600 bg-white hover:border-indigo-400'}`}>
+                                  {c.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         {/* 그룹 선택 - master/teacher 전용, 절대 student에게 노출 금지 */}
                         <div className="space-y-2 p-3 bg-amber-50 border border-amber-200 rounded-2xl">
                           <label className="text-[10px] font-black text-amber-700 flex items-center gap-1"><ShieldCheck size={11}/> 내부 수준 그룹 (학생·학부모 비공개)</label>
@@ -2610,6 +2749,48 @@ export default function App() {
                             </div>
                           );
                         })()}
+                        {/* 목표 등급/점수 - 절대 student 노출 금지 */}
+                        {userRole !== 'student' && (() => {
+                          const g = studentGoals[s.id] || {};
+                          return (
+                            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
+                              <p className="text-[9px] font-black text-emerald-700 flex items-center gap-1"><ShieldCheck size={10}/> 목표 등급 · 점수 (학생·학부모 비공개)</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <p className="text-[9px] font-black text-emerald-600">목표 점수</p>
+                                  {userRole === 'master' ? (
+                                    <BufferedInput type="number" value={g.targetScore ?? ''}
+                                      onSave={(v) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'studentGoals', s.id), { targetScore: v === '' ? null : parseFloat(v) }, { merge: true })}
+                                      placeholder="점수 입력..." className="w-full px-2 py-1.5 rounded-xl border border-emerald-200 bg-white font-bold text-sm outline-none focus:border-emerald-400 text-slate-800 shadow-sm" />
+                                  ) : (
+                                    <p className="text-sm font-black text-slate-700">{g.targetScore != null ? `${g.targetScore}점` : '-'}</p>
+                                  )}
+                                </div>
+                                <div className="space-y-1">
+                                  <p className="text-[9px] font-black text-emerald-600">목표 등급</p>
+                                  {userRole === 'master' ? (
+                                    <select value={g.targetGrade || ''} onChange={(e) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'studentGoals', s.id), { targetGrade: e.target.value }, { merge: true })}
+                                      className="w-full px-2 py-1.5 rounded-xl border border-emerald-200 bg-white font-bold text-sm outline-none focus:border-emerald-400 text-slate-800 shadow-sm">
+                                      <option value="">선택</option>
+                                      {['1등급','2등급','3등급','4등급','5등급','6등급','7등급','8등급','9등급'].map(g => <option key={g} value={g}>{g}</option>)}
+                                    </select>
+                                  ) : (
+                                    <p className="text-sm font-black text-slate-700">{g.targetGrade || '-'}</p>
+                                  )}
+                                </div>
+                              </div>
+                              {userRole === 'master' && (
+                                <div className="space-y-1">
+                                  <p className="text-[9px] font-black text-emerald-600">목표 메모</p>
+                                  <BufferedTextarea value={g.targetMemo || ''}
+                                    onSave={(v) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'studentGoals', s.id), { targetMemo: v }, { merge: true })}
+                                    placeholder="목표 관련 메모..."
+                                    className="w-full px-2 py-1.5 rounded-xl border border-emerald-200 bg-white font-medium text-xs outline-none focus:border-emerald-400 text-slate-700 resize-none h-10 shadow-sm" />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                         <div className="flex gap-2 pt-2 leading-none"><button onClick={saveStudentDetails} className="flex-1 py-2 bg-green-600 text-white rounded-xl font-black text-xs shadow-md transition-all hover:bg-green-700 leading-none">저장</button><button onClick={() => setEditStudentId(null)} className="px-4 py-2 bg-slate-100 text-slate-500 rounded-xl font-bold text-xs transition-all leading-none">취소</button></div>
                       </div>
                     ) : (
@@ -2617,6 +2798,11 @@ export default function App() {
                         <div className="space-y-3 flex-1 text-left leading-none">
                           <div className="flex items-center gap-2 text-left leading-none">
                             <span className="font-bold text-xl text-slate-800 leading-none">#{s.studentCode || '000'} {s.name}</span>
+                            {/* 반 뱃지 */}
+                            {userRole !== 'student' && s.classroomId && (() => {
+                              const cr = classrooms.find(c => c.id === s.classroomId);
+                              return cr ? <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-indigo-100 text-indigo-700 border border-indigo-200">{cr.name}</span> : null;
+                            })()}
                             {/* 그룹 뱃지 - 절대 student 노출 금지 */}
                             {userRole !== 'student' && s.group && (
                               <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-amber-100 text-amber-700 border border-amber-200">그룹 {s.group}</span>
@@ -2641,7 +2827,7 @@ export default function App() {
                         </div>
                         {userRole === 'master' && (
                           <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0 leading-none">
-                            <button onClick={() => { setEditStudentId(s.id); setEditStudentData({ name: s.name, studentCode: s.studentCode || '', homeroomTeacher: s.homeroomTeacher || '', highSchool: s.highSchool || '', group: s.group || '' }); }} className="p-2 text-indigo-500 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all shadow-sm leading-none"><Edit2 size={18} /></button>
+                            <button onClick={() => { setEditStudentId(s.id); setEditStudentData({ name: s.name, studentCode: s.studentCode || '', homeroomTeacher: s.homeroomTeacher || '', highSchool: s.highSchool || '', group: s.group || '', classroomId: s.classroomId || '' }); }} className="p-2 text-indigo-500 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all shadow-sm leading-none"><Edit2 size={18} /></button>
                             <button onClick={() => deleteItem('students', s.id)} className="p-2 text-red-500 bg-red-50 hover:bg-red-100 rounded-xl transition-all shadow-sm leading-none"><Trash2 size={18} /></button>
                           </div>
                         )}
@@ -4328,8 +4514,18 @@ export default function App() {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex justify-between items-center text-left text-slate-700 shadow-sm p-1 rounded-xl">
-                        <div className="flex flex-col gap-1 text-left">
+                      <div
+                        draggable={userRole === 'master'}
+                        onDragStart={() => setDragState({ type: regCategory, fromId: a.id, overId: null })}
+                        onDragOver={(e) => { e.preventDefault(); setDragState(p => ({ ...p, overId: a.id })); }}
+                        onDragEnd={() => { if (dragState.fromId && dragState.overId) reorderList(dragState.type, dragState.fromId, dragState.overId); setDragState({ type: null, fromId: null, overId: null }); }}
+                        className={`flex justify-between items-center text-left text-slate-700 shadow-sm p-1 rounded-xl transition-all ${dragState.overId === a.id && dragState.fromId !== a.id ? 'ring-2 ring-indigo-400 bg-indigo-50/50' : ''}`}>
+                        {userRole === 'master' && (
+                          <div className="flex items-center pr-2 cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 shrink-0">
+                            <svg width="14" height="20" viewBox="0 0 14 20" fill="currentColor"><circle cx="4" cy="5" r="1.5"/><circle cx="10" cy="5" r="1.5"/><circle cx="4" cy="10" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="4" cy="15" r="1.5"/><circle cx="10" cy="15" r="1.5"/></svg>
+                          </div>
+                        )}
+                        <div className="flex flex-col gap-1 text-left flex-1">
                           <div className="flex items-center gap-2 text-left leading-none">
                             <span className={`px-2 py-0.5 rounded text-[9px] font-black border ${regCategory === 'assignment' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-purple-50 text-purple-600 border-purple-100'}`}>{a.subject}</span>
                             <span className="text-[9px] font-black text-orange-500 bg-orange-50 px-2 py-0.5 rounded border border-orange-100 leading-none">{a.level}</span>
