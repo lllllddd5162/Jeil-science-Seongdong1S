@@ -1400,9 +1400,8 @@ export default function App() {
                                 {searchedStudents.map(s => (
                                   <button key={s.id}
                                     onClick={() => setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false }))}
-                                    onTouchEnd={(e) => { e.preventDefault(); setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false })); }}
                                     className={`px-2.5 py-1 rounded-full text-[10px] font-black border transition-all ${collapsedStudents[s.id] === false ? 'text-white border-transparent shadow-sm' : 'bg-white border-slate-300 text-slate-700'}`}
-                                    style={collapsedStudents[s.id] === false ? {background:'var(--sc)', WebkitTapHighlightColor:'transparent'} : {WebkitTapHighlightColor:'transparent'}}>
+                                    style={collapsedStudents[s.id] === false ? {background:'var(--sc)'} : {}}>
                                     {s.name}
                                   </button>
                                 ))}
@@ -1473,12 +1472,11 @@ export default function App() {
                             }
                             return (
                               <div key={s.id} className="p-4">
-                                {/* 학생 헤더 - 클릭하면 아래로 펼쳐짐 */}
-                                <div className="flex items-center justify-between mb-2"
-                                  style={{cursor:'pointer', WebkitTapHighlightColor:'transparent'}}
-                                  onClick={() => setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false }))}
-                                  onTouchEnd={(e) => { e.preventDefault(); setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false })); }}>
-                                  <div className="flex-1 min-w-0">
+                                {/* 학생 헤더 */}
+                                <div className="flex items-center justify-between mb-2">
+                                  <button
+                                    className="flex-1 min-w-0 text-left"
+                                    onClick={() => setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false }))}>
                                     <div className="flex items-center gap-1.5">
                                       {collapsedStudents[s.id] !== false
                                         ? <ChevronRight size={14} className="text-slate-400 shrink-0"/>
@@ -1489,7 +1487,7 @@ export default function App() {
                                       {s.homeroomTeacher && <span className="flex items-center gap-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-bold border border-indigo-100 leading-none"><UserCircle2 size={9}/> {s.homeroomTeacher}</span>}
                                       {s.highSchool && <span className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-50 text-slate-500 rounded text-[9px] font-bold border border-slate-100 leading-none"><School size={9}/> {s.highSchool}</span>}
                                     </div>
-                                  </div>
+                                  </button>
                                   {/* 오른쪽: 진척도 + 버튼들 */}
                                   <div className="flex items-center gap-2 shrink-0">
                                     <div className={`text-right px-3 py-1.5 rounded-xl ${activeTab === 'matrix' ? 'bg-indigo-50' : 'bg-purple-50'}`}>
@@ -1497,12 +1495,12 @@ export default function App() {
                                       <p className={`text-[10px] font-black ${activeTab === 'matrix' ? 'text-indigo-400' : 'text-purple-400'}`}>{labelText}</p>
                                     </div>
                                     {userRole === 'master' && (
-                                      <button onClick={(e) => { e.stopPropagation(); setBulkSelectedDate(new Date().toISOString().split('T')[0]); setBulkSelectedStatus(null); setBulkDatePopup({ item: { id: `bulk-student-${s.id}`, title: `${s.name} 전체 과제`, isBulkStudent: true, studentId: s.id, items: visibleItemsM.filter(a => a.type === 'all' || a.targetStudents?.includes(s.id)) }, category: activeTab === 'matrix' ? 'assignment' : 'memorization' }); }}
+                                      <button onClick={() => { setBulkSelectedDate(new Date().toISOString().split('T')[0]); setBulkSelectedStatus(null); setBulkDatePopup({ item: { id: `bulk-student-${s.id}`, title: `${s.name} 전체 과제`, isBulkStudent: true, studentId: s.id, items: visibleItemsM.filter(a => a.type === 'all' || a.targetStudents?.includes(s.id)) }, category: activeTab === 'matrix' ? 'assignment' : 'memorization' }); }}
                                         className="p-2 bg-indigo-50 rounded-xl text-indigo-500 hover:bg-indigo-100 transition-colors">
                                         <ListChecks size={16}/>
                                       </button>
                                     )}
-                                    <button onClick={(e) => { e.stopPropagation(); setSelectedStudent(s); }}><Search size={16} className="text-slate-300 hover:text-indigo-600 transition-colors" /></button>
+                                    <button onClick={() => setSelectedStudent(s)}><Search size={16} className="text-slate-300 hover:text-indigo-600 transition-colors" /></button>
                                   </div>
                                 </div>
                                 {/* 과제 목록 - 아코디언 슬라이드 */}
