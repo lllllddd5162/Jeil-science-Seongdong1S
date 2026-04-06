@@ -1400,23 +1400,18 @@ export default function App() {
                               <div className="px-4 pb-2 flex flex-wrap gap-1.5">
                                 {searchedStudents.map(s => (
                                   <button key={s.id}
-                                    onClick={() => setHiddenStudents(p => ({ ...p, [s.id]: !p[s.id] }))}
-                                    className={`px-2.5 py-1 rounded-full text-[10px] font-black border transition-all ${hiddenStudents[s.id] ? 'bg-slate-100 border-slate-200 text-slate-400 line-through' : 'bg-white border-slate-300 text-slate-700 shadow-sm'}`}>
+                                    onClick={() => setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false ? false : true }))}
+                                    className={`px-2.5 py-1 rounded-full text-[10px] font-black border transition-all ${collapsedStudents[s.id] === false ? 'text-white border-transparent shadow-sm' : 'bg-white border-slate-300 text-slate-700'}`}
+                                    style={collapsedStudents[s.id] === false ? {background:'var(--sc)'} : {}}>
                                     {s.name}
                                   </button>
                                 ))}
-                                {hiddenCount > 0 && (
-                                  <button onClick={() => setHiddenStudents({})}
-                                    className="px-2.5 py-1 rounded-full text-[10px] font-black border border-red-200 text-red-400 bg-white hover:bg-red-50 transition-all">
-                                    초기화
-                                  </button>
-                                )}
                               </div>
                               {/* 접기/펼치기 */}
                               <div className="px-4 pb-2.5 flex items-center justify-between">
                                 <span className="text-[10px] font-black text-slate-400">
                                   {studentSearchQuery ? `"${studentSearchQuery}" 검색 결과 ${searchedStudents.length}명` : `${visibleStudentsFiltered.length}명`}
-                                  {hiddenCount > 0 && <span className="text-red-400 ml-1">({hiddenCount}명 숨김)</span>}
+
                                 </span>
                                 <div className="flex gap-1.5">
                                   <button onClick={() => { const all = {}; visibleStudentsFiltered.forEach(s => { all[s.id] = false; }); setCollapsedStudents(all); }}
@@ -1459,7 +1454,6 @@ export default function App() {
                         <div className="divide-y divide-slate-100">
                           {visibleStudentsFiltered
                             .filter(s => !studentSearchQuery || s.name.includes(studentSearchQuery))
-                            .filter(s => !hiddenStudents[s.id])
                             .map(s => {
                             const items = visibleItemsM;
 
