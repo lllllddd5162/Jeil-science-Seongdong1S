@@ -1478,27 +1478,35 @@ export default function App() {
                               labelText = progressStat?.label || '-';
                             }
                             return (
-                              <div key={s.id} className="p-4">
+                              <div key={s.id} className={`p-4 transition-opacity ${hiddenStudents[s.id] ? 'opacity-40' : ''}`}>
                                 {/* 학생 헤더 */}
-                                <div
-                                  className="flex items-center justify-between mb-3 cursor-pointer select-none"
-                                  onClick={() => setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false }))}>
-                                  <div>
-                                    <div className="flex items-center gap-2">
-                                      <p className="text-base font-black text-slate-800">{s.name}</p>
-                                      {collapsedStudents[s.id] !== false ? <ChevronRight size={14} className="text-slate-400"/> : <ChevronDown size={14} className="text-slate-400"/>}
+                                <div className="flex items-center justify-between mb-3 select-none">
+                                  {/* 왼쪽: 이름 클릭 → 펼치기/접기 */}
+                                  <div className="flex-1 cursor-pointer"
+                                    onClick={() => setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false }))}>
+                                    <div className="flex items-center gap-1.5">
+                                      <p className={`text-base font-black ${hiddenStudents[s.id] ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{s.name}</p>
+                                      {/* 화살표 → on/off 토글 (e.stopPropagation으로 펼치기와 분리) */}
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setHiddenStudents(p => ({ ...p, [s.id]: !p[s.id] })); }}
+                                        className={`p-0.5 rounded transition-colors ${hiddenStudents[s.id] ? 'text-red-400 hover:text-red-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                                        {hiddenStudents[s.id]
+                                          ? <LucideX size={14}/>
+                                          : (collapsedStudents[s.id] !== false ? <ChevronRight size={14}/> : <ChevronDown size={14}/>)
+                                        }
+                                      </button>
                                     </div>
                                     <div className="flex flex-wrap gap-1 mt-1">
                                       {s.homeroomTeacher && <span className="flex items-center gap-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-bold border border-indigo-100 leading-none"><UserCircle2 size={9}/> {s.homeroomTeacher}</span>}
                                       {s.highSchool && <span className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-50 text-slate-500 rounded text-[9px] font-bold border border-slate-100 leading-none"><School size={9}/> {s.highSchool}</span>}
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-2">
+                                  {/* 오른쪽: 진척도 + 버튼들 */}
+                                  <div className="flex items-center gap-2 shrink-0">
                                     <div className={`text-right px-3 py-1.5 rounded-xl ${activeTab === 'matrix' ? 'bg-indigo-50' : 'bg-purple-50'}`}>
                                       <p className={`text-xs font-black ${activeTab === 'matrix' ? 'text-indigo-700' : 'text-purple-700'}`}>{pctText}</p>
                                       <p className={`text-[10px] font-black ${activeTab === 'matrix' ? 'text-indigo-400' : 'text-purple-400'}`}>{labelText}</p>
                                     </div>
-                                    {/* 모바일 일괄 버튼 */}
                                     {userRole === 'master' && (
                                       <button onClick={() => { setBulkSelectedDate(new Date().toISOString().split('T')[0]); setBulkSelectedStatus(null); setBulkDatePopup({ item: { id: `bulk-student-${s.id}`, title: `${s.name} 전체 과제`, isBulkStudent: true, studentId: s.id, items: visibleItemsM.filter(a => a.type === 'all' || a.targetStudents?.includes(s.id)) }, category: activeTab === 'matrix' ? 'assignment' : 'memorization' }); }}
                                         className="p-2 bg-indigo-50 rounded-xl text-indigo-500 hover:bg-indigo-100 transition-colors">
