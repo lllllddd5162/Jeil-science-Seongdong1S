@@ -1399,7 +1399,7 @@ export default function App() {
                               <div className="px-4 pb-2 flex flex-wrap gap-1.5">
                                 {searchedStudents.map(s => (
                                   <button key={s.id}
-                                    onClick={() => setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false }))}
+                                    onClick={() => setCollapsedStudents(p => { const n={...p}; if(n[s.id]===false) delete n[s.id]; else n[s.id]=false; return n; })}
                                     className={`px-2.5 py-1 rounded-full text-[10px] font-black border transition-all ${collapsedStudents[s.id] === false ? 'text-white border-transparent shadow-sm' : 'bg-white border-slate-300 text-slate-700'}`}
                                     style={collapsedStudents[s.id] === false ? {background:'var(--sc)'} : {}}>
                                     {s.name}
@@ -1476,7 +1476,7 @@ export default function App() {
                                 <div className="flex items-center justify-between mb-2">
                                   <button
                                     className="flex-1 min-w-0 text-left"
-                                    onClick={() => setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false }))}>
+                                    onClick={() => setCollapsedStudents(p => { const n={...p}; if(n[s.id]===false) delete n[s.id]; else n[s.id]=false; return n; })}>
                                     <div className="flex items-center gap-1.5">
                                       {collapsedStudents[s.id] !== false
                                         ? <ChevronRight size={14} className="text-slate-400 shrink-0"/>
