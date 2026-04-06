@@ -1369,13 +1369,12 @@ export default function App() {
 
                     return (
                       <div>
-                        {/* 주차 탭 */}
-                        {/* 검색 + on/off + 접기 컨트롤 바 */}
+                        {/* 검색 + 학생 칩 + 전체 토글 */}
                         {(() => {
                           const searchedStudents = visibleStudentsFiltered.filter(s =>
                             !studentSearchQuery || s.name.includes(studentSearchQuery)
                           );
-                          const hiddenCount = Object.values(hiddenStudents).filter(Boolean).length;
+                          const allExpanded = searchedStudents.every(s => collapsedStudents[s.id] === false);
                           return (
                             <div className="border-b border-slate-100 bg-slate-50/30">
                               {/* 검색창 */}
@@ -1396,7 +1395,7 @@ export default function App() {
                                   )}
                                 </div>
                               </div>
-                              {/* 학생 on/off 토글 칩 */}
+                              {/* 학생 칩 - 누르면 해당 학생 펼치기/접기 */}
                               <div className="px-4 pb-2 flex flex-wrap gap-1.5">
                                 {searchedStudents.map(s => (
                                   <button key={s.id}
@@ -1407,22 +1406,22 @@ export default function App() {
                                   </button>
                                 ))}
                               </div>
-                              {/* 접기/펼치기 */}
+                              {/* 인원수 + 전체 펼치기/접기 토글 버튼 하나 */}
                               <div className="px-4 pb-2.5 flex items-center justify-between">
                                 <span className="text-[10px] font-black text-slate-400">
-                                  {studentSearchQuery ? `"${studentSearchQuery}" 검색 결과 ${searchedStudents.length}명` : `${visibleStudentsFiltered.length}명`}
-
+                                  {studentSearchQuery ? `"${studentSearchQuery}" ${searchedStudents.length}명` : `${visibleStudentsFiltered.length}명`}
                                 </span>
-                                <div className="flex gap-1.5">
-                                  <button onClick={() => { const all = {}; visibleStudentsFiltered.forEach(s => { all[s.id] = false; }); setCollapsedStudents(all); }}
-                                    className="px-2.5 py-1 rounded-lg text-[10px] font-black border border-slate-200 text-slate-500 bg-white hover:bg-slate-50 transition-all">
-                                    전체 펼치기
-                                  </button>
-                                  <button onClick={() => setCollapsedStudents({})}
-                                    className="px-2.5 py-1 rounded-lg text-[10px] font-black border border-slate-200 text-slate-500 bg-white hover:bg-slate-50 transition-all">
-                                    전체 접기
-                                  </button>
-                                </div>
+                                <button onClick={() => {
+                                  if (allExpanded) {
+                                    setCollapsedStudents({});
+                                  } else {
+                                    const all = {};
+                                    searchedStudents.forEach(s => { all[s.id] = false; });
+                                    setCollapsedStudents(all);
+                                  }
+                                }} className="px-3 py-1 rounded-lg text-[10px] font-black border border-slate-200 text-slate-500 bg-white hover:bg-slate-50 transition-all flex items-center gap-1">
+                                  {allExpanded ? <><ChevronDown size={11}/> 전체 접기</> : <><ChevronRight size={11}/> 전체 펼치기</>}
+                                </button>
                               </div>
                             </div>
                           );
@@ -1472,25 +1471,18 @@ export default function App() {
                               labelText = progressStat?.label || '-';
                             }
                             return (
-                              <div key={s.id} className={`p-4 transition-opacity ${hiddenStudents[s.id] ? 'opacity-40' : ''}`}>
-                                {/* 학생 헤더 */}
-                                <div className="flex items-center justify-between mb-3 select-none">
-                                  {/* 왼쪽: 이름 클릭 → 펼치기/접기 */}
-                                  <div className="flex-1 cursor-pointer"
-                                    onClick={() => setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false }))}>
+                              <div key={s.id} className="p-4">
+                                {/* 학생 헤더 - 클릭하면 아래로 펼쳐짐 */}
+                                <div className="flex items-center justify-between mb-2 select-none cursor-pointer"
+                                  onClick={() => setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false }))}>
+                                  <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1.5">
-                                      <p className={`text-base font-black ${hiddenStudents[s.id] ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{s.name}</p>
-                                      {/* 화살표 → on/off 토글 (e.stopPropagation으로 펼치기와 분리) */}
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); setHiddenStudents(p => ({ ...p, [s.id]: !p[s.id] })); }}
-                                        className={`p-0.5 rounded transition-colors ${hiddenStudents[s.id] ? 'text-red-400 hover:text-red-600' : 'text-slate-400 hover:text-slate-600'}`}>
-                                        {hiddenStudents[s.id]
-                                          ? <LucideX size={14}/>
-                                          : (collapsedStudents[s.id] !== false ? <ChevronRight size={14}/> : <ChevronDown size={14}/>)
-                                        }
-                                      </button>
+                                      {collapsedStudents[s.id] !== false
+                                        ? <ChevronRight size={14} className="text-slate-400 shrink-0"/>
+                                        : <ChevronDown size={14} className="text-slate-400 shrink-0"/>}
+                                      <p className="text-base font-black text-slate-800">{s.name}</p>
                                     </div>
-                                    <div className="flex flex-wrap gap-1 mt-1">
+                                    <div className="flex flex-wrap gap-1 mt-1 ml-5">
                                       {s.homeroomTeacher && <span className="flex items-center gap-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-bold border border-indigo-100 leading-none"><UserCircle2 size={9}/> {s.homeroomTeacher}</span>}
                                       {s.highSchool && <span className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-50 text-slate-500 rounded text-[9px] font-bold border border-slate-100 leading-none"><School size={9}/> {s.highSchool}</span>}
                                     </div>
@@ -1502,12 +1494,12 @@ export default function App() {
                                       <p className={`text-[10px] font-black ${activeTab === 'matrix' ? 'text-indigo-400' : 'text-purple-400'}`}>{labelText}</p>
                                     </div>
                                     {userRole === 'master' && (
-                                      <button onClick={() => { setBulkSelectedDate(new Date().toISOString().split('T')[0]); setBulkSelectedStatus(null); setBulkDatePopup({ item: { id: `bulk-student-${s.id}`, title: `${s.name} 전체 과제`, isBulkStudent: true, studentId: s.id, items: visibleItemsM.filter(a => a.type === 'all' || a.targetStudents?.includes(s.id)) }, category: activeTab === 'matrix' ? 'assignment' : 'memorization' }); }}
+                                      <button onClick={(e) => { e.stopPropagation(); setBulkSelectedDate(new Date().toISOString().split('T')[0]); setBulkSelectedStatus(null); setBulkDatePopup({ item: { id: `bulk-student-${s.id}`, title: `${s.name} 전체 과제`, isBulkStudent: true, studentId: s.id, items: visibleItemsM.filter(a => a.type === 'all' || a.targetStudents?.includes(s.id)) }, category: activeTab === 'matrix' ? 'assignment' : 'memorization' }); }}
                                         className="p-2 bg-indigo-50 rounded-xl text-indigo-500 hover:bg-indigo-100 transition-colors">
                                         <ListChecks size={16}/>
                                       </button>
                                     )}
-                                    <button onClick={() => setSelectedStudent(s)}><Search size={16} className="text-slate-300 hover:text-indigo-600 transition-colors" /></button>
+                                    <button onClick={(e) => { e.stopPropagation(); setSelectedStudent(s); }}><Search size={16} className="text-slate-300 hover:text-indigo-600 transition-colors" /></button>
                                   </div>
                                 </div>
                                 {/* 과제 목록 - 아코디언 슬라이드 */}
