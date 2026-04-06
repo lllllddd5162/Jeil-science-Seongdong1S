@@ -1400,7 +1400,7 @@ export default function App() {
                               <div className="px-4 pb-2 flex flex-wrap gap-1.5">
                                 {searchedStudents.map(s => (
                                   <button key={s.id}
-                                    onClick={() => setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false ? false : true }))}
+                                    onClick={() => setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false }))}
                                     className={`px-2.5 py-1 rounded-full text-[10px] font-black border transition-all ${collapsedStudents[s.id] === false ? 'text-white border-transparent shadow-sm' : 'bg-white border-slate-300 text-slate-700'}`}
                                     style={collapsedStudents[s.id] === false ? {background:'var(--sc)'} : {}}>
                                     {s.name}
