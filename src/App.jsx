@@ -517,6 +517,8 @@ export default function App() {
   const [editPlanData, setEditPlanData] = useState(null);
 
   const [matrixHideDone, setMatrixHideDone] = useState(false);
+  const [matrixStatusFilter, setMatrixStatusFilter] = useState('all'); // 'all' | 'incomplete' | 'completed'
+  const [collapsedStudents, setCollapsedStudents] = useState({}); // 모바일 학생 접기
   const [collapsedWeeks, setCollapsedWeeks] = useState({});
   const [classrooms, setClassrooms] = useState([]);
   const [activeClassFilter, setActiveClassFilter] = useState("all");
@@ -575,6 +577,25 @@ export default function App() {
     let filtered = base;
     if (matrixSchoolFilter !== 'all') filtered = filtered.filter(s => (s.highSchool || '미설정') === matrixSchoolFilter);
     if (matrixGroupFilter !== 'all') filtered = filtered.filter(s => (s.group || '미설정') === matrixGroupFilter);
+    // 상태 필터 적용 (과제 기준)
+    if (matrixStatusFilter === 'incomplete') {
+      filtered = filtered.filter(s => {
+        const rel = assignments.filter(a => a.type === 'all' || a.targetStudents?.includes(s.id));
+        return rel.some(a => {
+          const st = submissions[`${s.id}-${a.id}`]?.status || 'not_started';
+          return ['not_started','in_progress','incomplete_red'].includes(st);
+        });
+      });
+    } else if (matrixStatusFilter === 'completed') {
+      filtered = filtered.filter(s => {
+        const rel = assignments.filter(a => a.type === 'all' || a.targetStudents?.includes(s.id));
+        if (rel.length === 0) return false;
+        return rel.every(a => {
+          const st = submissions[`${s.id}-${a.id}`]?.status || 'not_started';
+          return ['completed','exempt'].includes(st);
+        });
+      });
+    }
     // matrixSort 적용
     const sorted = [...filtered];
     if (matrixSort === 'name') sorted.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
@@ -620,6 +641,25 @@ export default function App() {
     setMyStudentId(null);
     setActiveTab('matrix');
   };
+
+  // URL 파라미터로 자동 로그인 (실장/선생님용)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlCode = params.get('code');
+    if (!urlCode) return;
+    // handleAuthSubmit과 동일한 비밀번호 참조
+    const { master: mp, teacher: tp } = (() => {
+      // 이 앱의 실제 비밀번호 (handleAuthSubmit 참조)
+      const el = document.querySelector('meta[name="app-master"]');
+      return { master: '71207179', teacher: '26350' };
+    })();
+    if (urlCode === mp) { handleLogin('master'); }
+    else if (urlCode === tp) { handleLogin('teacher'); }
+    // URL에서 code 파라미터 제거 (보안)
+    const url = new URL(window.location.href);
+    url.searchParams.delete('code');
+    window.history.replaceState({}, '', url.toString());
+  }, []);
 
   const handleLoginAttempt = (role) => {
     setShowPasswordInput(role);
@@ -1268,6 +1308,20 @@ export default function App() {
                           초기화
                         </button>
                       )}
+                      {/* 상태 필터 */}
+                      <div className="flex gap-1">
+                        {[
+                          { id: 'all', label: '전체' },
+                          { id: 'incomplete', label: '미완료' },
+                          { id: 'completed', label: '완료' },
+                        ].map(opt => (
+                          <button key={opt.id} onClick={() => setMatrixStatusFilter(opt.id)}
+                            className={`px-2.5 py-1.5 rounded-xl text-[10px] font-black border transition-all ${matrixStatusFilter === opt.id ? (opt.id === 'incomplete' ? 'bg-red-500 text-white border-red-500 shadow-sm' : opt.id === 'completed' ? 'bg-blue-500 text-white border-blue-500 shadow-sm' : 'text-white border-transparent shadow-sm') : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'}`}
+                            style={matrixStatusFilter === opt.id && opt.id === 'all' ? {background:'var(--sc)'} : {}}>
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
                       <button onClick={() => setMatrixHideDone(v => !v)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black border transition-all ${matrixHideDone ? 'bg-blue-500 text-white border-blue-500 shadow-sm' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'}`}>
                         <CheckCircle2 size={12}/>{matrixHideDone ? '완료 숨김 중' : '완료 숨기기'}
@@ -1314,6 +1368,20 @@ export default function App() {
                     return (
                       <div>
                         {/* 주차 탭 */}
+                        {/* 전체 접기/펼치기 */}
+                        <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
+                          <span className="text-[10px] font-black text-slate-400">학생 {visibleStudentsFiltered.length}명</span>
+                          <div className="flex gap-1.5">
+                            <button onClick={() => { const all = {}; visibleStudentsFiltered.forEach(s => { all[s.id] = false; }); setCollapsedStudents(all); }}
+                              className="px-2.5 py-1 rounded-lg text-[10px] font-black border border-slate-200 text-slate-500 bg-white hover:bg-slate-50 transition-all">
+                              전체 펼치기
+                            </button>
+                            <button onClick={() => setCollapsedStudents({})}
+                              className="px-2.5 py-1 rounded-lg text-[10px] font-black border border-slate-200 text-slate-500 bg-white hover:bg-slate-50 transition-all">
+                              전체 접기
+                            </button>
+                          </div>
+                        </div>
                         {activeTab === 'matrix' && weekGroupsM.length > 0 && (
                           <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap gap-2 items-center bg-slate-50/50">
                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest shrink-0">주차</span>
@@ -1359,9 +1427,14 @@ export default function App() {
                             return (
                               <div key={s.id} className="p-4">
                                 {/* 학생 헤더 */}
-                                <div className="flex items-center justify-between mb-3">
+                                <div
+                                  className="flex items-center justify-between mb-3 cursor-pointer select-none"
+                                  onClick={() => setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false }))}>
                                   <div>
-                                    <p className="text-base font-black text-slate-800">{s.name}</p>
+                                    <div className="flex items-center gap-2">
+                                      <p className="text-base font-black text-slate-800">{s.name}</p>
+                                      {collapsedStudents[s.id] !== false ? <ChevronRight size={14} className="text-slate-400"/> : <ChevronDown size={14} className="text-slate-400"/>}
+                                    </div>
                                     <div className="flex flex-wrap gap-1 mt-1">
                                       {s.homeroomTeacher && <span className="flex items-center gap-1 px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-bold border border-indigo-100 leading-none"><UserCircle2 size={9}/> {s.homeroomTeacher}</span>}
                                       {s.highSchool && <span className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-50 text-slate-500 rounded text-[9px] font-bold border border-slate-100 leading-none"><School size={9}/> {s.highSchool}</span>}
@@ -1382,8 +1455,8 @@ export default function App() {
                                     <button onClick={() => setSelectedStudent(s)}><Search size={16} className="text-slate-300 hover:text-indigo-600 transition-colors" /></button>
                                   </div>
                                 </div>
-                                {/* 과제 목록 */}
-                                <div className="space-y-2">
+                                {/* 과제 목록 - 접힌 상태면 숨김 */}
+                                {collapsedStudents[s.id] === false && <div className="space-y-2">
                                   {items.map(as => {
                                     const isTarget = as.type === 'all' || (as.targetStudents && as.targetStudents.includes(s.id));
                                     const subKey = `${s.id}-${as.id}`;
@@ -1447,7 +1520,7 @@ export default function App() {
                                       </div>
                                     );
                                   })}
-                                </div>
+                                </div>}
                               </div>
                             );
                           })}
@@ -1575,15 +1648,15 @@ export default function App() {
                             <th className="border-r"/>
                             {subjectGroups.map(({ subject, items }) =>
                               items.map((as) => (
-                                <th key={as.id} className="p-4 min-w-[150px] border-b border-l border-slate-100 relative group text-center">
+                                <th key={as.id} className="p-2 min-w-[80px] max-w-[120px] border-b border-l border-slate-100 relative group text-center">
                                   <div className="flex flex-col relative text-center">
                                     <div className="flex justify-between items-start mb-1 text-left leading-none">
-                                      <span className="text-[9px] font-black text-indigo-600 uppercase tracking-tighter leading-none">{as.level}</span>
+                                      <span className="text-[8px] font-black text-indigo-500 uppercase tracking-tighter leading-none">{as.level}</span>
                                       {userRole === 'master' && (
-                                        <button onClick={(e) => { e.stopPropagation(); setBulkSelectedDate(new Date().toISOString().split('T')[0]); setBulkSelectedStatus(null); setBulkDatePopup({ item: as, category: activeTab === 'matrix' ? 'assignment' : 'memorization' }); }} className="px-1.5 py-0.5 bg-white border rounded text-[9px] font-black text-slate-600 hover:bg-slate-50 leading-none">일괄</button>
+                                        <button onClick={(e) => { e.stopPropagation(); setBulkSelectedDate(new Date().toISOString().split('T')[0]); setBulkSelectedStatus(null); setBulkDatePopup({ item: as, category: activeTab === 'matrix' ? 'assignment' : 'memorization' }); }} className="px-1 py-0.5 bg-white border rounded text-[8px] font-black text-slate-500 hover:bg-slate-50 leading-none">일괄</button>
                                       )}
                                     </div>
-                                    <span className="text-xs font-bold text-slate-700 block text-center leading-tight break-words whitespace-normal">{as.title}</span>
+                                    <span className="text-[10px] font-bold text-slate-700 block text-center leading-tight break-words whitespace-normal line-clamp-2">{as.title}</span>
                                     {activeTab === 'matrix' && as.deadline && (() => {
                                       const today = new Date().toISOString().split('T')[0];
                                       const diff = Math.ceil((new Date(as.deadline) - new Date(today)) / (1000 * 60 * 60 * 24));
@@ -1685,27 +1758,29 @@ export default function App() {
                                       const subKey = `${s.id}-${as.id}`;
                                       const sub = (activeTab === 'matrix' ? submissions : memoSubmissions)[subKey];
                                       const status = sub?.status || 'not_started';
-                                      if (!(as.type === 'all' || (as.targetStudents && as.targetStudents.includes(s.id)))) return <td key={as.id} className="p-4 bg-slate-50/30 text-center font-bold text-[9px] text-slate-300 border-l border-slate-50">-</td>;
+                                      if (!(as.type === 'all' || (as.targetStudents && as.targetStudents.includes(s.id)))) return <td key={as.id} className="p-1 bg-slate-50/30 text-center font-bold text-[9px] text-slate-300 border-l border-slate-100">-</td>;
                                       const cfg = activeTab === 'matrix' ? ASSIGN_STATUS_CONFIG[status] : MEMO_STATUS_CONFIG[status];
                                       const isLate = status === 'completed' && as.deadline && sub.completionDate > as.deadline;
                                       const today = new Date().toISOString().split('T')[0];
                                       const overDiff = as.deadline && today > as.deadline ? Math.ceil((new Date(today) - new Date(as.deadline)) / (1000 * 60 * 60 * 24)) : 0;
                                       const isOverdue = overDiff > 0 && ['not_started', 'in_progress', 'incomplete_red'].includes(status);
+                                      // 상태별 압축 배경색
+                                      const cellBg = activeTab === 'matrix'
+                                        ? status === 'completed' ? (isLate ? 'bg-amber-50' : 'bg-blue-50') : status === 'incomplete_red' ? 'bg-red-50' : status === 'in_progress' ? 'bg-yellow-50' : status === 'exempt' ? 'bg-slate-100' : 'bg-white'
+                                        : cfg?.bg || 'bg-white';
                                       return (
-                                        <td key={as.id} className="p-3 text-center relative border-l border-slate-50">
+                                        <td key={as.id} className={`p-1 text-center relative border-l border-slate-100 ${cellBg}`}>
                                           <div
                                             onClick={(e) => { if (userRole === 'master') setStatusMenu({ studentId: s.id, itemId: as.id, category: activeTab === 'matrix' ? 'assignment' : 'memorization', x: e.clientX, y: e.clientY }); }}
-                                            className={`w-full py-2.5 rounded-xl transition-all flex flex-col items-center justify-center ${activeTab === 'matrix' ? (isLate ? STATUS_COLORS.late_completed : STATUS_COLORS[status]) : `${cfg?.bg} ${cfg?.color}`} ${userRole === 'master' ? 'cursor-pointer hover:brightness-95 shadow-sm' : 'cursor-default'}`}
+                                            className={`w-full py-2 rounded-lg transition-all flex flex-col items-center justify-center gap-0.5 ${userRole === 'master' ? 'cursor-pointer hover:brightness-95' : 'cursor-default'}`}
                                           >
                                             {activeTab === 'matrix' ? (
-                                              status === 'completed' ? (isLate ? <History size={16}/> : <CheckCircle2 size={16}/>) : status === 'in_progress' ? <Clock size={16}/> : status === 'incomplete_red' ? <AlertCircle size={16}/> : status === 'exempt' ? <MinusCircle size={16}/> : <Circle size={16}/>
+                                              status === 'completed' ? (isLate ? <History size={14} className="text-amber-500"/> : <CheckCircle2 size={14} className="text-blue-500"/>) : status === 'in_progress' ? <Clock size={14} className="text-yellow-500"/> : status === 'incomplete_red' ? <AlertCircle size={14} className="text-red-500"/> : status === 'exempt' ? <MinusCircle size={14} className="text-slate-400"/> : <Circle size={14} className="text-slate-300"/>
                                             ) : (
-                                              <>{cfg?.icon && React.createElement(cfg.icon, { size: 16 })}{status !== 'not_started' && <span className="text-[8px] font-black mt-0.5">{cfg?.label}</span>}</>
+                                              <>{cfg?.icon && React.createElement(cfg.icon, { size: 13, className: cfg.color })}{status !== 'not_started' && <span className={`text-[7px] font-black leading-none ${cfg?.color}`}>{cfg?.label}</span>}</>
                                             )}
                                             {isOverdue && (
-                                              <span className="mt-1 text-[8px] font-black text-red-600 bg-red-100 border border-red-300 px-1.5 py-0.5 rounded-lg leading-none flex items-center gap-0.5">
-                                                <AlertTriangle size={8}/>{overDiff}일 초과
-                                              </span>
+                                              <span className="text-[7px] font-black text-red-500 leading-none">{overDiff}일↑</span>
                                             )}
                                           </div>
                                           {(userRole === 'master' || userRole === 'teacher') && ((status === 'completed' && activeTab === 'matrix') || (status === 'round_4' && activeTab === 'memorization')) && sub.completionDate && (
@@ -1741,6 +1816,73 @@ export default function App() {
           {/* 종합 성적표 탭 */}
           {activeTab === 'tests' && (
             <div className="space-y-6">
+              {/* 전체 시험 레포트 출력 버튼 - master/teacher */}
+              {userRole !== 'student' && tests.length > 0 && (
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div>
+                    <p className="font-black text-slate-800 flex items-center gap-2"><Printer size={16} className="text-orange-500"/> 시험 종합 레포트</p>
+                    <p className="text-xs text-slate-400 font-medium mt-0.5">전체 학생 · 전체 시험 결과를 한 번에 출력</p>
+                  </div>
+                  <button onClick={() => {
+                    const DCOL = {'하':'#3b82f6','중하':'#06b6d4','중':'#64748b','중상':'#d97706','상':'#ea580c','극상':'#dc2626'};
+                    const mainTs = tests.filter(t => !t.testType || t.testType === '중간 테스트');
+                    const miniTs = tests.filter(t => t.testType === '미니 테스트');
+                    const allTs = [...mainTs, ...miniTs];
+                    const win = window.open('','_blank','width=900,height=900');
+                    const studentRows = visibleStudentsFiltered.map(s => {
+                      const tds = allTs.map(t => {
+                        const sc = testScores[`${s.id}-${t.id}`]?.score;
+                        const isMini = t.testType === '미니 테스트';
+                        return `<td style="padding:7px 10px;text-align:center;font-weight:${sc!=null?'900':'400'};color:${sc!=null?'#1e293b':'#cbd5e1'};background:${isMini?'#f8fafc':'#fff'}">${sc!=null?sc+'점':'-'}</td>`;
+                      }).join('');
+                      const mainScores = mainTs.map(t => testScores[`${s.id}-${t.id}`]?.score).filter(v=>v!=null);
+                      const avg = mainScores.length ? (mainScores.reduce((a,b)=>a+b,0)/mainScores.length).toFixed(1) : '-';
+                      const groupBadge = s.group ? `<span style="font-size:10px;background:#fef3c7;color:#d97706;border:1px solid #fde68a;border-radius:4px;padding:1px 5px;margin-left:4px">${s.group}</span>` : '';
+                      return `<tr style="border-bottom:1px solid #f1f5f9">
+                        <td style="padding:7px 10px;font-weight:700;white-space:nowrap">${s.name}${groupBadge}</td>
+                        <td style="padding:7px 10px;font-size:11px;color:#64748b;white-space:nowrap">${s.highSchool||'-'}</td>
+                        ${tds}
+                        <td style="padding:7px 10px;text-align:center;font-weight:900;color:#ea580c">${avg}${avg!=='-'?'점':''}</td>
+                      </tr>`;
+                    }).join('');
+                    const thds = allTs.map(t => `<th style="padding:7px 10px;background:${t.testType==='미니 테스트'?'#f1f5f9':'#fff7ed'};color:${t.testType==='미니 테스트'?'#64748b':'#ea580c'};font-size:10px;white-space:nowrap;border:1px solid #e2e8f0">${t.title}<br/><span style="font-weight:400;font-size:9px">${t.date}</span></th>`).join('');
+                    const avgs = allTs.map(t => {
+                      const vs = visibleStudentsFiltered.map(s => testScores[`${s.id}-${t.id}`]?.score).filter(v=>v!=null);
+                      const avg = vs.length ? (vs.reduce((a,b)=>a+b,0)/vs.length).toFixed(1) : '-';
+                      return `<td style="padding:7px 10px;text-align:center;font-weight:900;color:#ea580c;background:#fff7ed">${avg}${avg!=='-'?'점':''}</td>`;
+                    }).join('');
+                    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>시험 종합 레포트</title>
+                    <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Gothic Neo',sans-serif;padding:24px;color:#1e293b;font-size:12px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+                    h1{font-size:18px;font-weight:900;color:#ea580c;margin-bottom:4px}.meta{font-size:11px;color:#94a3b8;margin-bottom:16px}
+                    table{width:100%;border-collapse:collapse;border:1px solid #e2e8f0;font-size:12px}
+                    th{background:#fff7ed;padding:7px 10px;font-weight:900;color:#ea580c;text-align:center;border:1px solid #e2e8f0}
+                    td{border:1px solid #e2e8f0}
+                    tbody tr:nth-child(even){background:#f8fafc}
+                    .avg-row td{background:#fff7ed!important;font-weight:900;color:#ea580c}
+                    @media print{body{padding:10px;font-size:10px}tr{page-break-inside:avoid}}</style></head><body>
+                    <h1>📊 시험 종합 레포트</h1>
+                    <p class="meta">출력일: ${new Date(Date.now()+9*60*60*1000).toISOString().split('T')[0]} · 총 ${allTs.length}개 시험 · ${visibleStudentsFiltered.length}명</p>
+                    <table>
+                      <thead><tr>
+                        <th style="border:1px solid #e2e8f0">이름</th>
+                        <th style="border:1px solid #e2e8f0">학교</th>
+                        ${thds}
+                        <th style="background:#fff7ed;color:#ea580c;border:1px solid #e2e8f0">중간평균</th>
+                      </tr></thead>
+                      <tbody>${studentRows}</tbody>
+                      <tfoot><tr class="avg-row">
+                        <td style="padding:7px 10px;font-weight:900;background:#fff7ed" colspan="2">반 평균</td>
+                        ${avgs}
+                        <td style="padding:7px 10px;background:#fff7ed"></td>
+                      </tr></tfoot>
+                    </table>
+                    <script>window.onload=function(){window.print();window.close();}<\/script></body></html>`);
+                    win.document.close();
+                  }} className="flex items-center gap-2 px-5 py-3 bg-orange-500 text-white rounded-2xl font-black text-sm shadow-md hover:bg-orange-600 transition-all active:scale-95 whitespace-nowrap">
+                    <Printer size={16}/> 레포트 출력
+                  </button>
+                </div>
+              )}
               {userRole === 'master' && (
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm text-left text-slate-800">
                   <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-orange-600 leading-none"><Trophy size={20} /> 신규 시험 등록</h2>
@@ -3138,12 +3280,14 @@ export default function App() {
                             className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border-2 transition-all ${newPlan.subject === sub ? 'bg-teal-600 border-teal-600 text-white shadow-sm' : 'border-slate-200 text-slate-400 bg-white hover:border-slate-300'}`}>{sub}</button>
                         ))}
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-col gap-2">
                         <BufferedInput value={newPlan.unit} onSave={(v) => setNewPlan({ ...newPlan, unit: v })}
-                          placeholder="단원 / 내용 입력..." className="flex-1 px-4 py-2.5 rounded-2xl border bg-white font-bold text-sm outline-none focus:border-teal-400 transition-all text-slate-800 shadow-sm" />
-                        <BufferedInput value={newPlan.memo} onSave={(v) => setNewPlan({ ...newPlan, memo: v })}
-                          placeholder="메모 (선택)" className="flex-1 px-4 py-2.5 rounded-2xl border bg-white font-medium text-sm outline-none focus:border-teal-400 transition-all text-slate-700 shadow-sm" />
-                        <button onClick={addPlan} className="px-5 py-2.5 bg-teal-600 text-white rounded-2xl font-black text-sm shadow-md hover:bg-teal-700 transition-all active:scale-95 whitespace-nowrap leading-none">추가</button>
+                          placeholder="단원 / 내용 입력..." className="w-full px-4 py-2.5 rounded-2xl border bg-white font-bold text-sm outline-none focus:border-teal-400 transition-all text-slate-800 shadow-sm" />
+                        <div className="flex gap-2">
+                          <BufferedInput value={newPlan.memo} onSave={(v) => setNewPlan({ ...newPlan, memo: v })}
+                            placeholder="메모 (선택)" className="flex-1 px-4 py-2.5 rounded-2xl border bg-white font-medium text-sm outline-none focus:border-teal-400 transition-all text-slate-700 shadow-sm" />
+                          <button onClick={addPlan} className="px-6 py-2.5 bg-teal-600 text-white rounded-2xl font-black text-sm shadow-md hover:bg-teal-700 transition-all active:scale-95 whitespace-nowrap leading-none">추가</button>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -4920,15 +5064,24 @@ export default function App() {
                             </tr>`
                           ).join('');
                           win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${t.title} 결과</title>
-                          <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:32px;color:#1e293b;max-width:800px;margin:0 auto}
-                          h1{font-size:22px;font-weight:900;color:#ea580c;margin:0 0 4px}
-                          .meta{font-size:12px;color:#94a3b8;margin-bottom:24px}
-                          .section{margin-bottom:28px}
-                          .section-title{font-size:11px;font-weight:900;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #f1f5f9}
-                          table{width:100%;border-collapse:collapse}
-                          thead td,thead th{background:#fff7ed;padding:8px 12px;font-size:11px;font-weight:900;color:#ea580c;text-transform:uppercase;letter-spacing:.06em}
-                          .avg-row td{background:#fff7ed;font-weight:900;color:#ea580c}
-                          @media print{body{padding:16px}}</style></head><body>
+                          <style>
+                          *{box-sizing:border-box;margin:0;padding:0}
+                          body{font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Gothic Neo','Nanum Gothic',sans-serif;padding:28px;color:#1e293b;max-width:860px;margin:0 auto;font-size:13px;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+                          h1{font-size:20px;font-weight:900;color:#ea580c;margin-bottom:4px}
+                          .meta{font-size:11px;color:#94a3b8;margin-bottom:20px}
+                          .section{margin-bottom:24px;page-break-inside:avoid}
+                          .section-title{font-size:10px;font-weight:900;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;padding-bottom:5px;border-bottom:2px solid #f1f5f9}
+                          table{width:100%;border-collapse:collapse;border:1px solid #e2e8f0}
+                          th,td{padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;text-align:left}
+                          thead th,thead td{background:#fff7ed;font-weight:900;color:#ea580c;font-size:10px;text-transform:uppercase}
+                          tbody tr:nth-child(even){background:#f8fafc}
+                          .avg-row td{background:#fff7ed!important;font-weight:900;color:#ea580c}
+                          @media print{
+                            body{padding:12px;font-size:11px}
+                            .section{page-break-inside:avoid}
+                            table{page-break-inside:auto}
+                            tr{page-break-inside:avoid}
+                          }</style></head><body>
                           <h1>${t.title}</h1>
                           <p class="meta">${t.date}${t.source?' · '+t.source:''}${t.difficulty?' · 난이도 '+t.difficulty:''}${avg?' · 반평균 '+avg+'점':''}</p>
                           <div class="section">
@@ -5130,12 +5283,19 @@ export default function App() {
                     }).filter(Boolean).join('');
                     const groupBadgeHtml = s.group ? `<span style="font-size:12px;font-weight:900;background:#fef3c7;color:#d97706;border:1px solid #fde68a;border-radius:8px;padding:3px 8px;margin-left:8px;vertical-align:middle">${s.group}그룹</span>` : '';
                     win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${s.name} 시험 결과</title>
-                    <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:32px;color:#1e293b;max-width:900px;margin:0 auto}
-                    h1{font-size:22px;font-weight:900;margin:0 0 4px}
-                    .meta{font-size:12px;color:#94a3b8;margin-bottom:28px}
-                    table{width:100%;border-collapse:collapse}
-                    thead th{background:#f8fafc;padding:8px 12px;font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase;letter-spacing:.06em;text-align:left;border-bottom:2px solid #e2e8f0}
-                    @media print{body{padding:16px}}</style></head><body>
+                    <style>
+                    *{box-sizing:border-box;margin:0;padding:0}
+                    body{font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic','Apple SD Gothic Neo','Nanum Gothic',sans-serif;padding:28px;color:#1e293b;max-width:900px;margin:0 auto;font-size:13px;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+                    h1{font-size:20px;font-weight:900;margin-bottom:4px}
+                    .meta{font-size:11px;color:#94a3b8;margin-bottom:24px}
+                    table{width:100%;border-collapse:collapse;border:1px solid #e2e8f0}
+                    thead th{background:#f8fafc;padding:8px 12px;font-size:10px;font-weight:900;color:#64748b;text-transform:uppercase;letter-spacing:.06em;text-align:left;border:1px solid #e2e8f0}
+                    tbody td{border:1px solid #e2e8f0}
+                    tbody tr:nth-child(even){background:#f8fafc}
+                    @media print{
+                      body{padding:12px;font-size:11px}
+                      tr{page-break-inside:avoid}
+                    }</style></head><body>
                     <h1>${s.name}${groupBadgeHtml} 시험 결과</h1>
                     <p class="meta">${s.highSchool||''}${s.homeroomTeacher?' · '+s.homeroomTeacher:''} · 출력일: ${new Date(Date.now()+9*60*60*1000).toISOString().split('T')[0]}</p>
                     <table><thead><tr><th>시험명</th><th style="text-align:center">점수</th><th style="text-align:center">평균대비</th><th>오답 문항</th><th>메모</th></tr></thead>
