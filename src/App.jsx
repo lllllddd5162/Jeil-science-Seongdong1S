@@ -1400,8 +1400,9 @@ export default function App() {
                                 {searchedStudents.map(s => (
                                   <button key={s.id}
                                     onClick={() => setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false }))}
+                                    onTouchEnd={(e) => { e.preventDefault(); setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false })); }}
                                     className={`px-2.5 py-1 rounded-full text-[10px] font-black border transition-all ${collapsedStudents[s.id] === false ? 'text-white border-transparent shadow-sm' : 'bg-white border-slate-300 text-slate-700'}`}
-                                    style={collapsedStudents[s.id] === false ? {background:'var(--sc)'} : {}}>
+                                    style={collapsedStudents[s.id] === false ? {background:'var(--sc)', WebkitTapHighlightColor:'transparent'} : {WebkitTapHighlightColor:'transparent'}}>
                                     {s.name}
                                   </button>
                                 ))}
@@ -1473,8 +1474,10 @@ export default function App() {
                             return (
                               <div key={s.id} className="p-4">
                                 {/* 학생 헤더 - 클릭하면 아래로 펼쳐짐 */}
-                                <div className="flex items-center justify-between mb-2 cursor-pointer"
-                                  onClick={() => setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false }))}>
+                                <div className="flex items-center justify-between mb-2"
+                                  style={{cursor:'pointer', WebkitTapHighlightColor:'transparent'}}
+                                  onClick={() => setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false }))}
+                                  onTouchEnd={(e) => { e.preventDefault(); setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false })); }}>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1.5">
                                       {collapsedStudents[s.id] !== false
