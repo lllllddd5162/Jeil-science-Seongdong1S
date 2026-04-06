@@ -1508,8 +1508,15 @@ export default function App() {
                                     <button onClick={() => setSelectedStudent(s)}><Search size={16} className="text-slate-300 hover:text-indigo-600 transition-colors" /></button>
                                   </div>
                                 </div>
-                                {/* 과제 목록 - 접힌 상태면 숨김 */}
-                                {collapsedStudents[s.id] === false && <div className="space-y-2">
+                                {/* 과제 목록 - 아코디언 슬라이드 */}
+                                <div
+                                  style={{
+                                    maxHeight: collapsedStudents[s.id] === false ? '2000px' : '0px',
+                                    overflow: 'hidden',
+                                    transition: 'max-height 0.3s ease',
+                                  }}
+                                >
+                                <div className="space-y-2 pb-1">
                                   {items.map(as => {
                                     const isTarget = as.type === 'all' || (as.targetStudents && as.targetStudents.includes(s.id));
                                     const subKey = `${s.id}-${as.id}`;
@@ -1573,7 +1580,8 @@ export default function App() {
                                       </div>
                                     );
                                   })}
-                                </div>}
+                                </div>
+                                </div>
                               </div>
                             );
                           })}
