@@ -519,6 +519,8 @@ export default function App() {
   const [matrixHideDone, setMatrixHideDone] = useState(false);
   const [matrixStatusFilter, setMatrixStatusFilter] = useState('all'); // 'all' | 'incomplete' | 'completed'
   const [collapsedStudents, setCollapsedStudents] = useState({}); // 모바일 학생 접기
+  const [hiddenStudents, setHiddenStudents] = useState({}); // 모바일 학생 on/off
+  const [studentSearchQuery, setStudentSearchQuery] = useState(''); // 학생 검색
   const [collapsedWeeks, setCollapsedWeeks] = useState({});
   const [classrooms, setClassrooms] = useState([]);
   const [activeClassFilter, setActiveClassFilter] = useState("all");
@@ -1368,20 +1370,68 @@ export default function App() {
                     return (
                       <div>
                         {/* 주차 탭 */}
-                        {/* 전체 접기/펼치기 */}
-                        <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
-                          <span className="text-[10px] font-black text-slate-400">학생 {visibleStudentsFiltered.length}명</span>
-                          <div className="flex gap-1.5">
-                            <button onClick={() => { const all = {}; visibleStudentsFiltered.forEach(s => { all[s.id] = false; }); setCollapsedStudents(all); }}
-                              className="px-2.5 py-1 rounded-lg text-[10px] font-black border border-slate-200 text-slate-500 bg-white hover:bg-slate-50 transition-all">
-                              전체 펼치기
-                            </button>
-                            <button onClick={() => setCollapsedStudents({})}
-                              className="px-2.5 py-1 rounded-lg text-[10px] font-black border border-slate-200 text-slate-500 bg-white hover:bg-slate-50 transition-all">
-                              전체 접기
-                            </button>
-                          </div>
-                        </div>
+                        {/* 검색 + on/off + 접기 컨트롤 바 */}
+                        {(() => {
+                          const searchedStudents = visibleStudentsFiltered.filter(s =>
+                            !studentSearchQuery || s.name.includes(studentSearchQuery)
+                          );
+                          const hiddenCount = Object.values(hiddenStudents).filter(Boolean).length;
+                          return (
+                            <div className="border-b border-slate-100 bg-slate-50/30">
+                              {/* 검색창 */}
+                              <div className="px-4 pt-3 pb-2">
+                                <div className="relative">
+                                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300"/>
+                                  <input
+                                    value={studentSearchQuery}
+                                    onChange={e => setStudentSearchQuery(e.target.value)}
+                                    placeholder="학생 이름 검색..."
+                                    className="w-full pl-8 pr-8 py-2 rounded-xl border bg-white text-sm font-bold outline-none focus:border-indigo-300 text-slate-700 transition-all shadow-sm"
+                                  />
+                                  {studentSearchQuery && (
+                                    <button onClick={() => setStudentSearchQuery('')}
+                                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500">
+                                      <LucideX size={13}/>
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              {/* 학생 on/off 토글 칩 */}
+                              <div className="px-4 pb-2 flex flex-wrap gap-1.5">
+                                {searchedStudents.map(s => (
+                                  <button key={s.id}
+                                    onClick={() => setHiddenStudents(p => ({ ...p, [s.id]: !p[s.id] }))}
+                                    className={`px-2.5 py-1 rounded-full text-[10px] font-black border transition-all ${hiddenStudents[s.id] ? 'bg-slate-100 border-slate-200 text-slate-400 line-through' : 'bg-white border-slate-300 text-slate-700 shadow-sm'}`}>
+                                    {s.name}
+                                  </button>
+                                ))}
+                                {hiddenCount > 0 && (
+                                  <button onClick={() => setHiddenStudents({})}
+                                    className="px-2.5 py-1 rounded-full text-[10px] font-black border border-red-200 text-red-400 bg-white hover:bg-red-50 transition-all">
+                                    초기화
+                                  </button>
+                                )}
+                              </div>
+                              {/* 접기/펼치기 */}
+                              <div className="px-4 pb-2.5 flex items-center justify-between">
+                                <span className="text-[10px] font-black text-slate-400">
+                                  {studentSearchQuery ? `"${studentSearchQuery}" 검색 결과 ${searchedStudents.length}명` : `${visibleStudentsFiltered.length}명`}
+                                  {hiddenCount > 0 && <span className="text-red-400 ml-1">({hiddenCount}명 숨김)</span>}
+                                </span>
+                                <div className="flex gap-1.5">
+                                  <button onClick={() => { const all = {}; visibleStudentsFiltered.forEach(s => { all[s.id] = false; }); setCollapsedStudents(all); }}
+                                    className="px-2.5 py-1 rounded-lg text-[10px] font-black border border-slate-200 text-slate-500 bg-white hover:bg-slate-50 transition-all">
+                                    전체 펼치기
+                                  </button>
+                                  <button onClick={() => setCollapsedStudents({})}
+                                    className="px-2.5 py-1 rounded-lg text-[10px] font-black border border-slate-200 text-slate-500 bg-white hover:bg-slate-50 transition-all">
+                                    전체 접기
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
                         {activeTab === 'matrix' && weekGroupsM.length > 0 && (
                           <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap gap-2 items-center bg-slate-50/50">
                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest shrink-0">주차</span>
@@ -1407,7 +1457,10 @@ export default function App() {
                           </div>
                         )}
                         <div className="divide-y divide-slate-100">
-                          {visibleStudentsFiltered.map(s => {
+                          {visibleStudentsFiltered
+                            .filter(s => !studentSearchQuery || s.name.includes(studentSearchQuery))
+                            .filter(s => !hiddenStudents[s.id])
+                            .map(s => {
                             const items = visibleItemsM;
 
                             // 진척도 계산 (전체 과제 기준)
