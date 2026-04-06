@@ -1506,12 +1506,12 @@ export default function App() {
                                 {/* 과제 목록 - 아코디언 슬라이드 */}
                                 <div
                                   style={{
-                                    maxHeight: collapsedStudents[s.id] === false ? '2000px' : '0px',
+                                    maxHeight: collapsedStudents[s.id] === false ? '99999px' : '0px',
                                     overflow: 'hidden',
                                     transition: 'max-height 0.3s ease',
                                   }}
                                 >
-                                <div className="space-y-2 pb-1">
+                                <div className={items.length >= 10 ? "grid grid-cols-2 gap-2 pb-1" : "space-y-2 pb-1"}>
                                   {items.map(as => {
                                     const isTarget = as.type === 'all' || (as.targetStudents && as.targetStudents.includes(s.id));
                                     const subKey = `${s.id}-${as.id}`;
