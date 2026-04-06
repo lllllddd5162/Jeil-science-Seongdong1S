@@ -1143,7 +1143,7 @@ export default function App() {
     <ErrorBoundary>
       <SiteColorStyle color={siteColor} />
       {/* [FIX 2] 최상위에만 font-black 유지, 하위 요소에서 중복 제거 */}
-      <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20 select-none overflow-x-hidden font-black">
+      <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20 overflow-x-hidden font-black">
         <header className="text-white shadow-lg sticky top-0 z-40" style={{background:'var(--sc-darker)'}}>
           <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 text-left">
             <div className="flex items-center gap-3">
