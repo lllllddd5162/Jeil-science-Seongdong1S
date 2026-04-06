@@ -1473,7 +1473,7 @@ export default function App() {
                             return (
                               <div key={s.id} className="p-4">
                                 {/* 학생 헤더 - 클릭하면 아래로 펼쳐짐 */}
-                                <div className="flex items-center justify-between mb-2 select-none cursor-pointer"
+                                <div className="flex items-center justify-between mb-2 cursor-pointer"
                                   onClick={() => setCollapsedStudents(p => ({ ...p, [s.id]: p[s.id] !== false }))}>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1.5">
