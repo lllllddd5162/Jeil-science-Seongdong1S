@@ -619,12 +619,12 @@ export default function App() {
     return {
       assign, memo,
       studentTestAverages: students.reduce((acc, s) => {
-        const scs = mainTests.map(t => testScores[`${s.id}-${t.id}`]?.score).filter(v => v !== null && v !== undefined);
+        const scs = mainTests.map(t => { const r=testScores[`${s.id}-${t.id}`]; return r?.absent ? null : r?.score; }).filter(v => v !== null && v !== undefined);
         acc[s.id] = scs.length ? (scs.reduce((a, b) => a + b, 0) / scs.length).toFixed(1) : "0.0";
         return acc;
       }, {}),
       testAverages: tests.reduce((acc, t) => {
-        const scs = students.map(s => testScores[`${s.id}-${t.id}`]?.score).filter(v => v !== null && v !== undefined);
+        const scs = students.map(s => { const r=testScores[`${s.id}-${t.id}`]; return r?.absent ? null : r?.score; }).filter(v => v !== null && v !== undefined);
         acc[t.id] = scs.length ? (scs.reduce((a, b) => a + b, 0) / scs.length).toFixed(1) : "0.0";
         return acc;
       }, {})
@@ -645,24 +645,33 @@ export default function App() {
     setActiveTab('matrix');
   };
 
-  // URL 파라미터로 자동 로그인 (실장/선생님용)
+  // URL 파라미터로 자동 로그인 + 탭 이동 (실장/선생님용)
+  const [pendingTab, setPendingTab] = React.useState(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlCode = params.get('code');
+    const urlTab = params.get('tab');
     if (!urlCode) return;
-    // handleAuthSubmit과 동일한 비밀번호 참조
     const { master: mp, teacher: tp } = (() => {
-      // 이 앱의 실제 비밀번호 (handleAuthSubmit 참조)
-      const el = document.querySelector('meta[name="app-master"]');
       return { master: '71207179', teacher: '26350' };
     })();
     if (urlCode === mp) { handleLogin('master'); }
     else if (urlCode === tp) { handleLogin('teacher'); }
-    // URL에서 code 파라미터 제거 (보안)
+    // tab은 로그인 완료 후 이동하도록 저장
+    if (urlTab) { setPendingTab(urlTab); }
     const url = new URL(window.location.href);
     url.searchParams.delete('code');
+    url.searchParams.delete('tab');
     window.history.replaceState({}, '', url.toString());
   }, []);
+
+  // 로그인 완료 후 pendingTab으로 이동
+  useEffect(() => {
+    if (isLoggedIn && pendingTab) {
+      setActiveTab(pendingTab);
+      setPendingTab(null);
+    }
+  }, [isLoggedIn, pendingTab]);
 
   const handleLoginAttempt = (role) => {
     setShowPasswordInput(role);
@@ -1899,7 +1908,7 @@ export default function App() {
                       const color = isAbsent ? '#ef4444' : sc != null ? '#1e293b' : '#cbd5e1';
                       return `<td style="padding:7px 8px;text-align:center;font-weight:${sc!=null||isAbsent?'900':'400'};color:${color};background:${bg};border:1px solid #e2e8f0">${val}</td>`;
                     }).join('');
-                    const mainScores = chosenMain.map(t => { const r=testScores[`${s.id}-${t.id}`]; return r?.absent ? null : r?.score; }).filter(v=>v!=null);
+                    const mainScores = chosenMain.map(t => { const r=testScores[`${s.id}-${t.id}`]; return r?.absent ? null : r?.score; }).filter(v=>v!=null); // absent(결시/비대상) 모두 제외
                     const avg = mainScores.length ? (mainScores.reduce((a,b)=>a+b,0)/mainScores.length).toFixed(1) : '-';
                     // 취약 단원
                     const wrongUnits = chosenTs.flatMap(t => {
@@ -1922,7 +1931,7 @@ export default function App() {
 
                   // 반 평균
                   const avgs = chosenTs.map(t => {
-                    const vs = visibleStudentsFiltered.map(s => { const r=testScores[`${s.id}-${t.id}`]; return r?.absent?null:r?.score; }).filter(v=>v!=null);
+                    const vs = visibleStudentsFiltered.map(s => { const r=testScores[`${s.id}-${t.id}`]; return r?.absent?null:r?.score; }).filter(v=>v!=null); // 결시/비대상 제외
                     const avg = vs.length ? (vs.reduce((a,b)=>a+b,0)/vs.length).toFixed(1) : '-';
                     return `<td style="padding:7px 8px;text-align:center;font-weight:900;color:#ea580c;background:#fff7ed;border:1px solid #e2e8f0">${avg}${avg!=='-'?'점':''}</td>`;
                   }).join('');
@@ -1932,7 +1941,7 @@ export default function App() {
                     const allQs = t.questions || [];
                     if (!allQs.length) return '';
                     const qRows = allQs.map((q,qi) => {
-                      const wrongSts = visibleStudentsFiltered.filter(s => (testScores[`${s.id}-${t.id}`]?.wrongNums||[]).includes(qi+1));
+                      const wrongSts = visibleStudentsFiltered.filter(s => { const r=testScores[`${s.id}-${t.id}`]; return !r?.absent && (r?.wrongNums||[]).includes(qi+1); });
                       if (!wrongSts.length) return '';
                       const pct = Math.round(wrongSts.length/visibleStudentsFiltered.length*100);
                       return `<tr><td style="padding:5px 8px;border:1px solid #fecaca;font-weight:900;color:#ef4444">${q.type==='주관식'?'주':'객'}${q.num||qi+1}번</td>
@@ -2204,20 +2213,28 @@ export default function App() {
                                         </div>
                                         <div className="shrink-0 text-right flex flex-col items-end gap-1">
                                           {userRole === 'master' ? (
-                                            res.absent ? (
+                                            res.absent === 'absent' ? (
                                               <button onClick={() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { absent: false }, { merge: true })}
-                                                className="px-3 py-1.5 rounded-xl bg-red-100 border border-red-300 text-red-600 font-black text-xs">결시</button>
+                                                className="px-3 py-1.5 rounded-xl bg-red-100 border border-red-300 text-red-600 font-black text-xs">결시 ✕</button>
+                                            ) : res.absent === 'excluded' ? (
+                                              <button onClick={() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { absent: false }, { merge: true })}
+                                                className="px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-300 text-slate-500 font-black text-xs">비대상 ✕</button>
                                             ) : (
                                               <BufferedInput type="number" value={res.score ?? ''}
                                                 onSave={(v) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { score: v === '' ? null : parseFloat(v) }, { merge: true })}
                                                 className="w-20 px-2 py-1.5 rounded-xl bg-white border border-orange-200 font-bold text-center text-sm focus:border-orange-400 shadow-sm transition-all" />
                                             )
                                           ) : (
-                                            <p className="text-base font-black text-slate-800 leading-none">{res.absent ? '결시' : score !== '' && score != null ? `${score}점` : '-'}</p>
+                                            <p className="text-base font-black text-slate-800 leading-none">{res.absent === 'absent' ? '결시' : res.absent === 'excluded' ? '비대상' : score !== '' && score != null ? `${score}점` : '-'}</p>
                                           )}
                                           {userRole === 'master' && !res.absent && (
-                                            <button onClick={() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { absent: true, score: null }, { merge: true })}
-                                              className="text-[9px] font-black text-red-300 hover:text-red-500 transition-colors">결시 처리</button>
+                                            <div className="flex gap-2">
+                                              <button onClick={() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { absent: 'absent', score: null }, { merge: true })}
+                                                className="text-[9px] font-black text-red-300 hover:text-red-500 transition-colors">결시</button>
+                                              <span className="text-[9px] text-slate-200">|</span>
+                                              <button onClick={() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { absent: 'excluded', score: null }, { merge: true })}
+                                                className="text-[9px] font-black text-slate-300 hover:text-slate-500 transition-colors">비대상</button>
+                                            </div>
                                           )}
                                           <p className="text-[9px] text-indigo-500 font-black">AVG {stats.testAverages[t.id]}점</p>
                                         </div>
@@ -2344,22 +2361,29 @@ export default function App() {
                                           <div className="mb-2 space-y-1">
                                             {res.absent ? (
                                               <div className="flex flex-col items-center gap-1">
-                                                <span className="px-3 py-1.5 bg-red-100 border border-red-300 text-red-600 font-black text-sm rounded-xl">결시</span>
+                                                <span className={`px-3 py-1.5 border font-black text-sm rounded-xl ${res.absent === 'absent' ? 'bg-red-100 border-red-300 text-red-600' : 'bg-slate-100 border-slate-300 text-slate-500'}`}>
+                                                  {res.absent === 'absent' ? '결시' : '비대상'}
+                                                </span>
                                                 <button onClick={() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { absent: false }, { merge: true })}
-                                                  className="text-[9px] text-red-300 hover:text-red-500 font-black transition-colors">취소</button>
+                                                  className="text-[9px] text-slate-300 hover:text-slate-500 font-black transition-colors">취소</button>
                                               </div>
                                             ) : (
                                               <>
                                                 <BufferedInput type="number" value={res.score ?? ''} onSave={(v) => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { score: v === '' ? null : parseFloat(v) }, { merge: true })} className="w-full px-2 py-2 rounded-xl bg-orange-50 border border-orange-100 font-black text-center text-lg text-orange-700 focus:border-orange-400 shadow-sm transition-all" step="any" />
                                                 {calcScore !== null && <p className="text-[9px] font-bold text-slate-400 text-center">배점계산 {calcScore.toFixed(1)}점</p>}
-                                                <button onClick={() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { absent: true, score: null }, { merge: true })}
-                                                  className="w-full text-[9px] text-red-300 hover:text-red-500 font-black transition-colors">결시 처리</button>
+                                                <div className="flex gap-1 justify-center">
+                                                  <button onClick={() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { absent: 'absent', score: null }, { merge: true })}
+                                                    className="text-[9px] text-red-300 hover:text-red-500 font-black transition-colors">결시</button>
+                                                  <span className="text-[9px] text-slate-200">|</span>
+                                                  <button onClick={() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${t.id}`), { absent: 'excluded', score: null }, { merge: true })}
+                                                    className="text-[9px] text-slate-300 hover:text-slate-500 font-black transition-colors">비대상</button>
+                                                </div>
                                               </>
                                             )}
                                           </div>
                                         ) : (
-                                          <div className={`text-xl font-black mb-2 leading-none ${res.absent ? 'text-red-400' : score != null && score !== '' ? 'text-slate-800' : 'text-slate-300'}`}>
-                                            {res.absent ? '결시' : score != null && score !== '' ? `${score}점` : '-'}
+                                          <div className={`text-xl font-black mb-2 leading-none ${res.absent === 'absent' ? 'text-red-400' : res.absent === 'excluded' ? 'text-slate-400' : score != null && score !== '' ? 'text-slate-800' : 'text-slate-300'}`}>
+                                            {res.absent === 'absent' ? '결시' : res.absent === 'excluded' ? '비대상' : score != null && score !== '' ? `${score}점` : '-'}
                                           </div>
                                         )}
                                         {/* 오답 문항 */}
@@ -5097,6 +5121,73 @@ export default function App() {
                         );
                       })()}
                       <BufferedTextarea value={selectedTest.description} onSave={(v) => setSelectedTest({ ...selectedTest, description: v })} className="w-full h-28 p-4 border-2 border-slate-100 rounded-3xl font-medium text-sm bg-white" placeholder="전체 범위 및 메모..." />
+                      {/* 학생 대상/비대상 관리 */}
+                      <div className="bg-slate-50 rounded-2xl p-4 space-y-3">
+                        <p className="text-xs font-black text-slate-600 flex items-center gap-1.5"><Users size={13}/> 응시 대상 · 결시 관리</p>
+                        <p className="text-[10px] text-slate-400 font-medium">기본값은 전체 응시. 결시 또는 비대상 학생만 표시 처리하세요.</p>
+                        {/* 학교별 일괄 */}
+                        {[...new Set(visibleStudentsFiltered.map(s=>s.highSchool).filter(Boolean))].length > 1 && (
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400 mb-1.5">학교별 일괄</p>
+                            <div className="flex flex-wrap gap-2">
+                              {[...new Set(visibleStudentsFiltered.map(s=>s.highSchool).filter(Boolean))].map(school => {
+                                const sg = visibleStudentsFiltered.filter(s=>s.highSchool===school);
+                                const allAbsent = sg.every(s=>testScores[`${s.id}-${selectedTest.id}`]?.absent==='absent');
+                                const allExcluded = sg.every(s=>testScores[`${s.id}-${selectedTest.id}`]?.absent==='excluded');
+                                const bulkSet = async (val) => { const b=writeBatch(db); sg.forEach(s=>b.set(doc(db,'artifacts',appId,'public','data','testScores',`${s.id}-${selectedTest.id}`),{absent:val,...(val?{score:null}:{})},{merge:true})); await b.commit(); };
+                                return (
+                                  <div key={school} className="flex items-center gap-1">
+                                    <span className="text-[10px] font-black text-slate-600">{school}</span>
+                                    <button onClick={()=>bulkSet(allAbsent?false:'absent')} className={`px-2.5 py-1 rounded-lg text-[10px] font-black border-2 transition-all ${allAbsent?'bg-red-500 border-red-500 text-white':'bg-white border-red-200 text-red-400 hover:border-red-400'}`}>{allAbsent?'✕결시':'결시'}</button>
+                                    <button onClick={()=>bulkSet(allExcluded?false:'excluded')} className={`px-2.5 py-1 rounded-lg text-[10px] font-black border-2 transition-all ${allExcluded?'bg-slate-500 border-slate-500 text-white':'bg-white border-slate-200 text-slate-400 hover:border-slate-400'}`}>{allExcluded?'✕비대상':'비대상'}</button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        {/* 그룹별 일괄 */}
+                        {[...new Set(visibleStudentsFiltered.map(s=>s.group).filter(Boolean))].length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400 mb-1.5">그룹별 일괄</p>
+                            <div className="flex flex-wrap gap-2">
+                              {[...new Set(visibleStudentsFiltered.map(s=>s.group).filter(Boolean))].sort().map(group => {
+                                const sg = visibleStudentsFiltered.filter(s=>s.group===group);
+                                const allAbsent = sg.every(s=>testScores[`${s.id}-${selectedTest.id}`]?.absent==='absent');
+                                const allExcluded = sg.every(s=>testScores[`${s.id}-${selectedTest.id}`]?.absent==='excluded');
+                                const bulkSet = async (val) => { const b=writeBatch(db); sg.forEach(s=>b.set(doc(db,'artifacts',appId,'public','data','testScores',`${s.id}-${selectedTest.id}`),{absent:val,...(val?{score:null}:{})},{merge:true})); await b.commit(); };
+                                return (
+                                  <div key={group} className="flex items-center gap-1">
+                                    <span className="text-[10px] font-black text-amber-600">그룹 {group}</span>
+                                    <button onClick={()=>bulkSet(allAbsent?false:'absent')} className={`px-2.5 py-1 rounded-lg text-[10px] font-black border-2 transition-all ${allAbsent?'bg-red-500 border-red-500 text-white':'bg-white border-red-200 text-red-400'}`}>{allAbsent?'✕결시':'결시'}</button>
+                                    <button onClick={()=>bulkSet(allExcluded?false:'excluded')} className={`px-2.5 py-1 rounded-lg text-[10px] font-black border-2 transition-all ${allExcluded?'bg-slate-500 border-slate-500 text-white':'bg-white border-slate-200 text-slate-400'}`}>{allExcluded?'✕비대상':'비대상'}</button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        {/* 개별 학생 */}
+                        <div>
+                          <p className="text-[10px] font-black text-slate-400 mb-1.5">개별 선택</p>
+                          <div className="flex flex-wrap gap-2">
+                            {visibleStudentsFiltered.map(s => {
+                              const absentType = testScores[`${s.id}-${selectedTest.id}`]?.absent;
+                              return (
+                                <div key={s.id} className="flex flex-col items-center gap-0.5">
+                                  <span className="text-[10px] font-black text-slate-600">{s.name}</span>
+                                  <div className="flex gap-1">
+                                    <button onClick={()=>setDoc(doc(db,'artifacts',appId,'public','data','testScores',`${s.id}-${selectedTest.id}`),{absent:absentType==='absent'?false:'absent',score:null},{merge:true})}
+                                      className={`px-2 py-0.5 rounded-lg text-[9px] font-black border transition-all ${absentType==='absent'?'bg-red-500 border-red-500 text-white':'bg-white border-red-200 text-red-400'}`}>결시</button>
+                                    <button onClick={()=>setDoc(doc(db,'artifacts',appId,'public','data','testScores',`${s.id}-${selectedTest.id}`),{absent:absentType==='excluded'?false:'excluded',score:null},{merge:true})}
+                                      className={`px-2 py-0.5 rounded-lg text-[9px] font-black border transition-all ${absentType==='excluded'?'bg-slate-500 border-slate-500 text-white':'bg-white border-slate-200 text-slate-400'}`}>비대상</button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
                       <button onClick={updateTestDetails} className="w-full py-4 bg-green-600 text-white rounded-xl font-black shadow-lg">저장하기</button>
                     </div>
                   ) : (
@@ -5274,25 +5365,136 @@ export default function App() {
                         );
                       })()}
                       {/* 응시 학생 관리 - master만 */}
-                      {userRole === 'master' && (
-                        <div className="bg-slate-50 rounded-2xl p-4 space-y-3">
-                          <p className="text-xs font-black text-slate-500 flex items-center gap-1.5"><Users size={13}/> 결시 · 미응시 학생 관리</p>
-                          <div className="flex flex-wrap gap-2">
-                            {visibleStudentsFiltered.map(s => {
-                              const res = testScores[`${s.id}-${selectedTest.id}`] || {};
-                              const isAbsent = res.absent;
-                              return (
-                                <button key={s.id}
-                                  onClick={() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${selectedTest.id}`), { absent: !isAbsent, ...(isAbsent ? {} : { score: null }) }, { merge: true })}
-                                  className={`px-3 py-1.5 rounded-xl text-xs font-black border-2 transition-all ${isAbsent ? 'bg-red-500 border-red-500 text-white shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:border-red-300'}`}>
-                                  {isAbsent ? '✕ ' : ''}{s.name}
-                                </button>
-                              );
-                            })}
+                      {userRole === 'master' && (() => {
+                        const schools = [...new Set(visibleStudentsFiltered.map(s => s.highSchool).filter(Boolean))];
+                        const groups = [...new Set(visibleStudentsFiltered.map(s => s.group).filter(Boolean))].sort();
+                        const classroomList = classrooms;
+
+                        const setAbsentBulk = async (studentList, absentValue) => {
+                          // absentValue: 'absent'|'excluded'|false
+                          const batch = writeBatch(db);
+                          studentList.forEach(s => {
+                            batch.set(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${selectedTest.id}`),
+                              { absent: absentValue, ...(absentValue ? { score: null } : {}) }, { merge: true });
+                          });
+                          await batch.commit();
+                        };
+
+                        return (
+                          <div className="bg-slate-50 rounded-2xl p-4 space-y-3">
+                            <p className="text-xs font-black text-slate-600 flex items-center gap-1.5"><Users size={13}/> 결시 · 미응시 학생 관리</p>
+
+                            {/* 묶음 선택 - 학교별 */}
+                            {schools.length > 1 && (
+                              <div>
+                                <p className="text-[10px] font-black text-slate-400 mb-1.5">학교별 일괄</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {schools.map(school => {
+                                    const sGroup = visibleStudentsFiltered.filter(s => s.highSchool === school);
+                                    const allAbsent = sGroup.every(s => testScores[`${s.id}-${selectedTest.id}`]?.absent === 'absent');
+                                    const allExcluded = sGroup.every(s => testScores[`${s.id}-${selectedTest.id}`]?.absent === 'excluded');
+                                    return (
+                                      <div key={school} className="flex items-center gap-1">
+                                        <span className="text-[10px] font-black text-slate-500">{school}</span>
+                                        <button onClick={() => setAbsentBulk(sGroup, allAbsent ? false : 'absent')}
+                                          className={`px-2.5 py-1 rounded-lg text-[10px] font-black border-2 transition-all ${allAbsent ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-red-200 text-red-400 hover:border-red-400'}`}>
+                                          {allAbsent ? '✕결시' : '결시'}
+                                        </button>
+                                        <button onClick={() => setAbsentBulk(sGroup, allExcluded ? false : 'excluded')}
+                                          className={`px-2.5 py-1 rounded-lg text-[10px] font-black border-2 transition-all ${allExcluded ? 'bg-slate-500 border-slate-500 text-white' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-400'}`}>
+                                          {allExcluded ? '✕비대상' : '비대상'}
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 묶음 선택 - 그룹별 */}
+                            {groups.length > 0 && (
+                              <div>
+                                <p className="text-[10px] font-black text-slate-400 mb-1.5">그룹별 일괄</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {groups.map(group => {
+                                    const sGroup = visibleStudentsFiltered.filter(s => s.group === group);
+                                    const allAbsent = sGroup.every(s => testScores[`${s.id}-${selectedTest.id}`]?.absent === 'absent');
+                                    const allExcluded = sGroup.every(s => testScores[`${s.id}-${selectedTest.id}`]?.absent === 'excluded');
+                                    return (
+                                      <div key={group} className="flex items-center gap-1">
+                                        <span className="text-[10px] font-black text-amber-600">그룹 {group}</span>
+                                        <button onClick={() => setAbsentBulk(sGroup, allAbsent ? false : 'absent')}
+                                          className={`px-2.5 py-1 rounded-lg text-[10px] font-black border-2 transition-all ${allAbsent ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-red-200 text-red-400 hover:border-red-400'}`}>
+                                          {allAbsent ? '✕결시' : '결시'}
+                                        </button>
+                                        <button onClick={() => setAbsentBulk(sGroup, allExcluded ? false : 'excluded')}
+                                          className={`px-2.5 py-1 rounded-lg text-[10px] font-black border-2 transition-all ${allExcluded ? 'bg-slate-500 border-slate-500 text-white' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-400'}`}>
+                                          {allExcluded ? '✕비대상' : '비대상'}
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 묶음 선택 - 반별 */}
+                            {classroomList.length > 0 && (
+                              <div>
+                                <p className="text-[10px] font-black text-slate-400 mb-1.5">반별 일괄</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {classroomList.map(cr => {
+                                    const sGroup = visibleStudentsFiltered.filter(s => s.classroomId === cr.id);
+                                    if (!sGroup.length) return null;
+                                    const allAbsent = sGroup.every(s => testScores[`${s.id}-${selectedTest.id}`]?.absent === 'absent');
+                                    const allExcluded = sGroup.every(s => testScores[`${s.id}-${selectedTest.id}`]?.absent === 'excluded');
+                                    return (
+                                      <div key={cr.id} className="flex items-center gap-1">
+                                        <span className="text-[10px] font-black text-indigo-600">{cr.name}</span>
+                                        <button onClick={() => setAbsentBulk(sGroup, allAbsent ? false : 'absent')}
+                                          className={`px-2.5 py-1 rounded-lg text-[10px] font-black border-2 transition-all ${allAbsent ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-red-200 text-red-400 hover:border-red-400'}`}>
+                                          {allAbsent ? '✕결시' : '결시'}
+                                        </button>
+                                        <button onClick={() => setAbsentBulk(sGroup, allExcluded ? false : 'excluded')}
+                                          className={`px-2.5 py-1 rounded-lg text-[10px] font-black border-2 transition-all ${allExcluded ? 'bg-slate-500 border-slate-500 text-white' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-400'}`}>
+                                          {allExcluded ? '✕비대상' : '비대상'}
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 개별 학생 */}
+                            <div>
+                              <p className="text-[10px] font-black text-slate-400 mb-1.5">개별 선택</p>
+                              <div className="flex flex-wrap gap-2">
+                                {visibleStudentsFiltered.map(s => {
+                                  const res = testScores[`${s.id}-${selectedTest.id}`] || {};
+                                  const absentType = res.absent; // 'absent'|'excluded'|falsy
+                                  return (
+                                    <div key={s.id} className="flex flex-col items-center gap-0.5">
+                                      <span className="text-[10px] font-black text-slate-600">{s.name}</span>
+                                      <div className="flex gap-1">
+                                        <button onClick={() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${selectedTest.id}`), { absent: absentType === 'absent' ? false : 'absent', score: null }, { merge: true })}
+                                          className={`px-2 py-0.5 rounded-lg text-[9px] font-black border transition-all ${absentType === 'absent' ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-red-200 text-red-400'}`}>
+                                          결시
+                                        </button>
+                                        <button onClick={() => setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'testScores', `${s.id}-${selectedTest.id}`), { absent: absentType === 'excluded' ? false : 'excluded', score: null }, { merge: true })}
+                                          className={`px-2 py-0.5 rounded-lg text-[9px] font-black border transition-all ${absentType === 'excluded' ? 'bg-slate-500 border-slate-500 text-white' : 'bg-white border-slate-200 text-slate-400'}`}>
+                                          비대상
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                            <p className="text-[10px] text-slate-400 font-medium">클릭 → 결시 (빨간) / 다시 클릭 → 해제</p>
                           </div>
-                          <p className="text-[10px] text-slate-400 font-medium">버튼 클릭 → 결시 처리 (빨간색) / 다시 클릭 → 해제</p>
-                        </div>
-                      )}
+                        );
+                      })()}
                       <button onClick={() => { setSelectedTest(null); setIsTestEditMode(false); }} className="w-full py-5 bg-orange-600 text-white rounded-3xl font-black shadow-lg shadow-orange-100 transition-all active:scale-95 leading-none">확인 완료</button>
                     </div>
                   )}
