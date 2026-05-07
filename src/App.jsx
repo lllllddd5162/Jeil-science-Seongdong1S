@@ -665,11 +665,15 @@ export default function App() {
     window.history.replaceState({}, '', url.toString());
   }, []);
 
-  // 로그인 완료 후 pendingTab으로 이동
+  // 로그인 완료 후 pendingTab으로 이동 (Firebase 로딩 대기 후)
   useEffect(() => {
     if (isLoggedIn && pendingTab) {
-      setActiveTab(pendingTab);
-      setPendingTab(null);
+      // Firebase 구독 완료 후 탭 이동하도록 1.5초 대기
+      const timer = setTimeout(() => {
+        setActiveTab(pendingTab);
+        setPendingTab(null);
+      }, 1500);
+      return () => clearTimeout(timer);
     }
   }, [isLoggedIn, pendingTab]);
 
